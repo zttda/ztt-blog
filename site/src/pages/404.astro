@@ -1,0 +1,30 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { SITE_TITLE } from '../consts';
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<BaseHead title={`页面没找到 | ${SITE_TITLE}`} description="这个页面暂时不存在。" />
+	</head>
+	<body>
+		<Header />
+		<main>
+			<section class="hero">
+				<div>
+					<p class="hero-kicker">404</p>
+					<h1>这里暂时没有内容。</h1>
+					<p>可能是链接写错了，也可能是这个页面还在路上。先回到首页看看最近文章。</p>
+					<div class="actions">
+						<a class="button" href="/">回首页</a>
+						<a class="button secondary" href="/blog/">看文章</a>
+					</div>
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</body>
+</html>

@@ -1,24 +1,20 @@
 ---
-title: '博客搭建记录：从 0 到上线'
-description: '这篇文章记录了个人博客从本地初始化到 GitHub、Cloudflare Pages 上线的整个过程。'
-pubDate: 'Mar 21 2026'
+title: '博客搭建记录：从本地到 Cloudflare Pages'
+description: '记录这个 Astro 静态博客的基本搭建思路，后续会替换成更完整的建站笔记。'
+tags: ['建站', 'Astro', 'Cloudflare Pages']
+pubDate: '2026-03-21'
 heroImage: '../../assets/blog-placeholder-3.jpg'
 ---
 
-这篇文章是博客里的第一篇测试内容，用来记录网站正式上线前后的关键步骤。
+这是一篇占位建站记录，用来先把博客结构撑起来。
 
-目前这套博客使用了下面这组组合：
+目前这套博客采用 Astro 生成静态页面，文章放在 `src/content/blog/`，每次推送到 GitHub 后由 Cloudflare Pages 自动构建并发布。这个方案的好处是简单、便宜、维护压力小。
 
-- Astro 作为静态站点框架
-- GitHub 作为代码仓库
-- Cloudflare Pages 负责自动部署
-- `www.200302.xyz` 作为正式访问域名
+后续可以继续补充：
 
-从结果看，这套方案很适合个人博客：
+- 域名解析和 Cloudflare Pages 绑定过程
+- GitHub 仓库与自动部署设置
+- Markdown/MDX 写作流程
+- 遇到的问题和解决记录
 
-- 成本低
-- 访问速度还可以
-- 更新方式简单
-- 以后改主题和内容也比较灵活
-
-这篇文章先保留为建站日志，后面我会继续补充域名配置、Pages 构建设置和 SSH 推送过程中的踩坑记录。
+等真实内容写完后，这篇文章可以改成一份完整的建站复盘。

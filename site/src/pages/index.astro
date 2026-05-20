@@ -1,37 +1,95 @@
 ---
+import { Image } from 'astro:assets';
+import { getCollection } from 'astro:content';
 import BaseHead from '../components/BaseHead.astro';
 import Footer from '../components/Footer.astro';
+import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
+import HeroImage from '../assets/blog-placeholder-2.jpg';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+import { getPublishedPosts } from '../utils/posts';
+
+const posts = await getPublishedPosts();
+const latestPosts = posts.slice(0, 3);
+const allTags = [...new Set(posts.flatMap((post) => post.data.tags))].slice(0, 8);
 ---
 
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} image={HeroImage} />
 	</head>
 	<body>
 		<Header />
 		<main>
-			<h1>你好，我是 ztt。</h1>
-			<p>
-				这是我的个人博客测试站，先用来放一些学习记录、折腾笔记和阶段总结。后面我会逐步把它改成
-				更完整的个人网站。
-			</p>
-			<p>
-				目前网站已经完成了 GitHub + Cloudflare Pages 的自动部署流程。以后我会在这里发布技术随笔、
-				项目日志，以及一些值得回看的生活记录。
-			</p>
-			<p>这个测试首页先放 5 个方向：</p>
-			<ul>
-				<li>记录正在学习的前端、工程化和部署知识</li>
-				<li>整理遇到的问题和解决过程，避免以后重复踩坑</li>
-				<li>保存一些值得继续打磨的小项目</li>
-				<li>把零散的想法慢慢沉淀成完整文章</li>
-				<li>以后再补作品页、友链页和更个性化的首页设计</li>
-			</ul>
-			<p>如果你以后回来看这个页面，大概率它已经不是默认模板了。这一版只是网站上线后的第一块地基。</p>
-			<p>接下来我准备优先完善首页文案、关于页、文章分类和文章列表，再逐步替换掉当前的占位内容。</p>
+			<section class="hero">
+				<div>
+					<p class="hero-kicker">个人博客 / 学习记录 / 项目日志</p>
+					<h1>把折腾过的东西，慢慢写成能回看的记录。</h1>
+					<p>
+						这里先放学习笔记、建站过程、项目复盘和一些日常想法。内容还在搭建中，
+						现在的文章和图片有不少是占位，后面会逐步替换成真实记录。
+					</p>
+					<div class="actions">
+						<a class="button" href="/blog/">看文章</a>
+						<a class="button secondary" href="/links/">看友链</a>
+					</div>
+				</div>
+				<div class="hero-panel">
+					<p class="eyebrow">当前状态</p>
+					<h2>Cloudflare Pages 静态部署</h2>
+					<p class="muted">
+						Astro 生成页面，Markdown/MDX 写文章。没有数据库，没有后台服务，
+						适合低成本长期维护。
+					</p>
+				</div>
+			</section>
+
+			<section>
+				<div class="section-head">
+					<div>
+						<p class="eyebrow">Latest</p>
+						<h2>最近文章</h2>
+					</div>
+					<a href="/blog/">全部文章</a>
+				</div>
+				<div class="grid">
+					{
+						latestPosts.map((post) => (
+							<a class="post-card" href={`/blog/${post.id}/`}>
+								{post.data.heroImage && (
+									<Image width={720} height={405} src={post.data.heroImage} alt={`${post.data.title} 封面`} />
+								)}
+								<div>
+									<p class="post-meta">
+										<FormattedDate date={post.data.pubDate} />
+									</p>
+									<h3>{post.data.title}</h3>
+									<p class="muted">{post.data.description}</p>
+									<div class="tag-list">
+										{post.data.tags.slice(0, 3).map((tag) => (
+											<span class="tag-pill">{tag}</span>
+										))}
+									</div>
+								</div>
+							</a>
+						))
+					}
+				</div>
+			</section>
+
+			<section>
+				<div class="section-head">
+					<div>
+						<p class="eyebrow">Topics</p>
+						<h2>正在整理的主题</h2>
+					</div>
+					<a href="/tags/">全部标签</a>
+				</div>
+				<div class="tag-list">
+					{allTags.map((tag) => <a class="tag-pill" href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>)}
+				</div>
+			</section>
 		</main>
 		<Footer />
 	</body>

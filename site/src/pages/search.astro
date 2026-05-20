@@ -1,0 +1,84 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { SITE_TITLE } from '../consts';
+import { getPublishedPosts } from '../utils/posts';
+
+const posts = (await getPublishedPosts()).map((post) => ({
+		title: post.data.title,
+		description: post.data.description,
+		tags: post.data.tags,
+		url: `/blog/${post.id}/`,
+		date: post.data.pubDate.toLocaleDateString('zh-CN', {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric',
+		}),
+	}));
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<BaseHead title={`搜索 | ${SITE_TITLE}`} description="在博客文章中搜索标题、摘要和标签。" />
+	</head>
+	<body>
+		<Header />
+		<main>
+			<p class="eyebrow">Search</p>
+			<h1>搜索</h1>
+			<p class="page-lede">纯前端搜索，不需要数据库。现在会搜索文章标题、摘要和标签。</p>
+
+			<div class="search-box">
+				<label class="sr-only" for="search-input">搜索文章</label>
+				<input id="search-input" type="search" placeholder="输入关键词，比如 Astro、部署、项目" autocomplete="off" />
+			</div>
+			<div id="search-results" class="archive-list"></div>
+		</main>
+		<Footer />
+
+		<script define:vars={{ posts }}>
+			const input = document.getElementById('search-input');
+			const results = document.getElementById('search-results');
+
+			function render(list) {
+				if (!results) return;
+				results.innerHTML = list
+					.map(
+						(post) => `
+							<article class="archive-item">
+								<p class="archive-meta">${post.date}</p>
+								<div>
+									<a href="${post.url}">${post.title}</a>
+									<p class="muted">${post.description}</p>
+									<div class="tag-list">${post.tags
+										.map((tag) => `<span class="tag-pill">${tag}</span>`)
+										.join('')}</div>
+								</div>
+							</article>
+						`,
+					)
+					.join('');
+			}
+
+			function search(value) {
+				const keyword = value.trim().toLowerCase();
+				if (!keyword) {
+					render(posts);
+					return;
+				}
+				render(
+					posts.filter((post) =>
+						[post.title, post.description, ...post.tags].some((item) =>
+							item.toLowerCase().includes(keyword),
+						),
+					),
+				);
+			}
+
+			input?.addEventListener('input', (event) => search(event.target.value));
+			render(posts);
+		</script>
+	</body>
+</html>

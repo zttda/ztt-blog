@@ -1,35 +1,39 @@
 ---
-title: '第一次更新博客的工作流'
-description: '把本地预览、修改内容、提交并自动部署这套流程先固定下来。'
-pubDate: 'Mar 23 2026'
+title: '一次博客更新的工作流'
+description: '把本地预览、修改内容、构建检查和自动部署这套流程先固定下来。'
+tags: ['工作流', 'GitHub', '部署']
+pubDate: '2026-03-23'
 heroImage: '../../assets/blog-placeholder-5.jpg'
 ---
 
-为了让这个博客真的长期可用，我先把日常更新流程固定成最简单的版本。
+为了让这个博客真的能长期使用，我先把日常更新流程固定成一个足够简单的版本。
 
 ## 本地预览
 
-启动本地预览脚本，检查页面是否正常：
+在 `site/` 目录启动开发服务器：
 
 ```bash
-python scripts/preview_blog.py
+npm run dev
 ```
+
+浏览器打开本地地址后，就可以一边写一边看效果。
 
 ## 修改内容
 
-目前最常改的几个位置：
+最常改的地方包括：
 
-- `src/pages/index.astro`：首页内容
+- `src/content/blog/`：文章
+- `src/pages/index.astro`：首页
 - `src/pages/about.astro`：关于页
-- `src/content/blog/`：文章内容
-- `src/components/Header.astro` 和 `src/components/Footer.astro`：导航和页脚
+- `src/data/friends.ts`：友链数据
+- `src/styles/global.css`：全站样式
 
-## 提交和发布
+## 构建检查
 
-改完后直接执行：
+提交前建议先运行：
 
 ```bash
-python scripts/update_blog.py -m "update blog"
+npm run build
 ```
 
-GitHub 收到推送后，Cloudflare Pages 会自动重新部署。对个人博客来说，这种方式已经足够顺手。
+如果构建通过，再提交到 GitHub。Cloudflare Pages 会自动拉取仓库并发布最新版本。

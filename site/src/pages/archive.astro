@@ -1,0 +1,42 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import Header from '../components/Header.astro';
+import { SITE_TITLE } from '../consts';
+import { getPublishedPosts } from '../utils/posts';
+
+const posts = await getPublishedPosts();
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<BaseHead title={`归档 | ${SITE_TITLE}`} description="按时间归档的博客文章。" />
+	</head>
+	<body>
+		<Header />
+		<main>
+			<p class="eyebrow">Archive</p>
+			<h1>归档</h1>
+			<p class="page-lede">文章会按发布时间倒序排列，方便回看每个阶段留下的记录。</p>
+
+			<div class="archive-list">
+				{
+					posts.map((post) => (
+						<article class="archive-item">
+							<p class="archive-meta">
+								<FormattedDate date={post.data.pubDate} />
+							</p>
+							<div>
+								<a href={`/blog/${post.id}/`}>{post.data.title}</a>
+								<p class="muted">{post.data.description}</p>
+							</div>
+						</article>
+					))
+				}
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>

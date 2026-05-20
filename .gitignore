@@ -5,5 +5,13 @@ dist/
 .wrangler/
 __pycache__/
 *.pyc
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
 scripts/github_token.txt
 scripts/create_repo_and_push.log

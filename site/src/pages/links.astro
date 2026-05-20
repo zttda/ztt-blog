@@ -1,0 +1,51 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { friends } from '../data/friends';
+import { SITE_TITLE, SITE_URL } from '../consts';
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<BaseHead title={`友链 | ${SITE_TITLE}`} description="朋友们的博客和网站。" />
+	</head>
+	<body>
+		<Header />
+		<main>
+			<p class="eyebrow">Friends</p>
+			<h1>友链</h1>
+			<p class="page-lede">这里先放几个占位和已知朋友站点，后续可以慢慢换成真实友链。</p>
+
+			<div class="callout">
+				<h2>本站信息</h2>
+				<p><strong>名称：</strong>{SITE_TITLE}</p>
+				<p><strong>链接：</strong>{SITE_URL}</p>
+				<p><strong>简介：</strong>记录学习、项目和日常思考的个人博客。</p>
+				<p><strong>头像：</strong>{SITE_URL}/favicon.svg</p>
+			</div>
+
+			<div class="section-head">
+				<div>
+					<p class="eyebrow">Links</p>
+					<h2>朋友们</h2>
+				</div>
+			</div>
+			<div class="grid">
+				{
+					friends.map((friend) => (
+						<a class="link-card" href={friend.url} target="_blank" rel="noopener noreferrer">
+							<img src={friend.avatar} alt={`${friend.name} 头像`} loading="lazy" />
+							<span>
+								<strong>{friend.name}</strong>
+								<span class="muted">{friend.description}</span>
+							</span>
+						</a>
+					))
+				}
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>

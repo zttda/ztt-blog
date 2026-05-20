@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SITE_DIR = ROOT / "site"
 DEFAULT_MESSAGE = "update blog"
 
 
@@ -30,13 +32,38 @@ def print_output(result: subprocess.CompletedProcess[str]) -> None:
         print(result.stderr.strip())
 
 
+def npm_command() -> str:
+    return "npm.cmd" if sys.platform.startswith("win") else "npm"
+
+
+def build_site() -> None:
+    env = dict(os.environ)
+    env["ASTRO_TELEMETRY_DISABLED"] = "1"
+    result = subprocess.run(
+        [npm_command(), "run", "build"],
+        cwd=str(SITE_DIR),
+        check=True,
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+    print_output(result)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Commit and push blog updates to GitHub.")
     parser.add_argument("-m", "--message", default=DEFAULT_MESSAGE, help="Commit message.")
     parser.add_argument("--no-push", action="store_true", help="Commit only, do not push.")
+    parser.add_argument("--skip-build", action="store_true", help="Skip npm build before committing.")
     args = parser.parse_args()
 
     print(f"Project root: {ROOT}")
+
+    if not args.skip_build:
+        print("Running build check...")
+        build_site()
 
     status = run(["git", "status", "--short"], check=False)
     if not status.stdout.strip():
