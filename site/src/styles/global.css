@@ -233,7 +233,7 @@ footer {
 	min-height: 520px;
 	padding: 3rem;
 	background:
-		linear-gradient(90deg, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 0.72)),
+		linear-gradient(90deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.42)),
 		var(--hero-bg) center / cover no-repeat;
 }
 
@@ -262,9 +262,10 @@ footer {
 .callout {
 	border: 1px solid rgb(var(--line));
 	border-radius: 8px;
-	background: rgb(var(--surface));
+	background: rgba(var(--surface), 0.82);
 	padding: 1.2rem;
 	box-shadow: var(--shadow);
+	backdrop-filter: blur(12px);
 }
 
 .actions {
@@ -289,8 +290,9 @@ footer {
 
 .button.secondary {
 	border: 1px solid rgb(var(--line));
-	background: rgb(var(--surface));
+	background: rgba(var(--surface), 0.86);
 	color: rgb(var(--ink));
+	backdrop-filter: blur(8px);
 }
 
 .section-head {
