@@ -7,7 +7,7 @@ const navItems = navigation.filter((item) => item.enabled);
 ---
 
 <header>
-	<nav>
+	<nav aria-label="主导航">
 		<a class="site-name" href="/">{SITE_TITLE}</a>
 		<div class="internal-links">
 			{navItems.map((item) => <HeaderLink href={item.href}>{item.label}</HeaderLink>)}

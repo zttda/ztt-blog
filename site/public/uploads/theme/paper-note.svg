@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-labelledby="title desc">
+	<title id="title">Paper note illustration</title>
+	<desc id="desc">A simple editorial paper note with a red pencil line and small teal stamp.</desc>
+	<rect width="320" height="240" rx="22" fill="#fffaf0"/>
+	<path d="M48 48h186c16 0 28 12 28 28v116H72c-13 0-24-11-24-24V48Z" fill="#f3ead5" stroke="#2d261c" stroke-width="5"/>
+	<path d="M78 85h126M78 116h154M78 147h104" stroke="#9b8c73" stroke-width="8" stroke-linecap="round"/>
+	<path d="M205 172c25-18 51-25 78-18" fill="none" stroke="#c4492d" stroke-width="12" stroke-linecap="round"/>
+	<circle cx="246" cy="91" r="30" fill="#0d7f78"/>
+	<path d="M232 92h28M246 78v28" stroke="#fffaf0" stroke-width="8" stroke-linecap="round"/>
+</svg>

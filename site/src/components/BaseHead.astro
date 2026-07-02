@@ -16,7 +16,8 @@ interface Props {
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
 const { title, description, image = FallbackImage } = Astro.props;
-const absoluteImageURL = new URL(image.src, Astro.site);
+const socialImageSrc = image.src.includes('blog-xs') ? '/uploads/theme/crayon-sticker-720.webp' : image.src;
+const absoluteImageURL = new URL(socialImageSrc, Astro.site);
 const builtinFonts = {
 	default: {
 		stack: '"Atkinson", "Microsoft YaHei", "PingFang SC", sans-serif',
@@ -25,7 +26,7 @@ const builtinFonts = {
 		stack: '"Noto Serif SC", "Songti SC", "SimSun", serif',
 	},
 	wenkai: {
-		stack: '"LXGW WenKai", "KaiTi", "STKaiti", serif',
+		stack: '"KaiTi", "STKaiti", "FangSong", "Microsoft YaHei", "PingFang SC", serif',
 	},
 	sans: {
 		stack: '"Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif',
@@ -92,6 +93,196 @@ ${customFontCss}
 <!-- Font preloads -->
 <link rel="preload" href="/fonts/atkinson-regular.woff" as="font" type="font/woff" crossorigin />
 <link rel="preload" href="/fonts/atkinson-bold.woff" as="font" type="font/woff" crossorigin />
+
+<script is:inline>
+	(() => {
+		const storageKey = 'blog-style-v2';
+		const themes = [
+			{
+				id: 'crayon-party',
+				label: '蜡笔派对',
+				swatch: 'conic-gradient(from 140deg, #2f7fe6, #fff2d5, #f04f9a, #ffbe3e)',
+			},
+			{
+				id: 'paper',
+				label: '纸刊手记',
+				swatch: 'conic-gradient(from 140deg, #c4492d, #fff8e8, #0d7f78, #c4492d)',
+			},
+			{
+				id: 'noir',
+				label: '夜读小报',
+				swatch: 'conic-gradient(from 140deg, #f06d4f, #10100d, #4fc3c9, #ffb35c)',
+			},
+			{
+				id: 'ceramic',
+				label: '陶瓷档案',
+				swatch: 'conic-gradient(from 140deg, #1f6f8b, #fafffd, #b23a34, #1f6f8b)',
+			},
+			{
+				id: 'brutal',
+				label: '粗野印刷',
+				swatch: 'conic-gradient(from 140deg, #12110f, #fffdee, #ffd537, #d83324)',
+			},
+			{
+				id: 'terminal',
+				label: '绿色终端',
+				swatch: 'conic-gradient(from 140deg, #7dff9e, #040e0a, #ffdc5e, #ff6c4f)',
+			},
+		];
+		const ids = themes.map((theme) => theme.id);
+		const params = new URLSearchParams(window.location.search);
+		const fromQuery = params.get('style');
+		const fromStorage = (() => {
+			try {
+				return localStorage.getItem(storageKey);
+			} catch {
+				return null;
+			}
+		})();
+		const initial = ids.includes(fromQuery) ? fromQuery : ids.includes(fromStorage) ? fromStorage : 'crayon-party';
+
+		const applyStyle = (id) => {
+			document.documentElement.dataset.style = id;
+			document.documentElement.style.colorScheme = ['noir', 'terminal'].includes(id) ? 'dark' : 'light';
+		};
+
+		applyStyle(initial);
+
+		if (ids.includes(fromQuery)) {
+			try {
+				localStorage.setItem(storageKey, fromQuery);
+			} catch {}
+		}
+
+		window.addEventListener('DOMContentLoaded', () => {
+			const switcher = document.createElement('div');
+			switcher.className = 'theme-switcher';
+			switcher.setAttribute('aria-label', 'Choose visual style');
+
+			const toggle = document.createElement('button');
+			toggle.type = 'button';
+			toggle.className = 'theme-toggle';
+			toggle.title = 'Choose visual style';
+			toggle.setAttribute('aria-label', 'Choose visual style');
+			toggle.setAttribute('aria-expanded', 'false');
+			toggle.setAttribute('aria-controls', 'theme-options');
+
+			const options = document.createElement('div');
+			options.className = 'theme-options';
+			options.id = 'theme-options';
+			options.setAttribute('role', 'radiogroup');
+			options.setAttribute('aria-label', 'Visual style');
+			switcher.append(toggle, options);
+
+			for (const theme of themes) {
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'theme-swatch';
+				button.dataset.style = theme.id;
+				button.title = theme.label;
+				button.setAttribute('aria-label', theme.label);
+				button.setAttribute('role', 'radio');
+				button.style.setProperty('--swatch', theme.swatch);
+				options.append(button);
+			}
+
+			const setOpen = (open) => {
+				switcher.classList.toggle('is-open', open);
+				toggle.setAttribute('aria-expanded', String(open));
+				options.hidden = !open;
+				options.inert = !open;
+				options.setAttribute('aria-hidden', String(!open));
+				for (const button of options.querySelectorAll('button[data-style]')) {
+					button.tabIndex = open ? 0 : -1;
+				}
+			};
+
+			const syncButtons = (activeStyle) => {
+				for (const button of switcher.querySelectorAll('button[data-style]')) {
+					button.setAttribute('aria-checked', String(button.dataset.style === activeStyle));
+				}
+				const activeTheme = themes.find((theme) => theme.id === activeStyle);
+				if (activeTheme) {
+					toggle.style.setProperty('--active-swatch', activeTheme.swatch);
+					toggle.setAttribute('aria-label', `Choose visual style, current: ${activeTheme.label}`);
+					toggle.title = `Choose visual style: ${activeTheme.label}`;
+				}
+			};
+
+			const selectStyle = (button) => {
+				const nextStyle = button?.dataset?.style;
+				if (!ids.includes(nextStyle)) return;
+
+				applyStyle(nextStyle);
+				syncButtons(nextStyle);
+				try {
+					localStorage.setItem(storageKey, nextStyle);
+				} catch {}
+
+				const url = new URL(window.location.href);
+				url.searchParams.set('style', nextStyle);
+				window.history.replaceState({}, '', url);
+			};
+
+			switcher.addEventListener('click', (event) => {
+				if (event.target.closest('.theme-toggle')) {
+					setOpen(!switcher.classList.contains('is-open'));
+					return;
+				}
+
+				const button = event.target.closest('button[data-style]');
+				if (!button) return;
+				selectStyle(button);
+				setOpen(false);
+				toggle.focus();
+			});
+
+			document.addEventListener('click', (event) => {
+				if (!switcher.contains(event.target)) setOpen(false);
+			});
+
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && switcher.classList.contains('is-open')) {
+					setOpen(false);
+					toggle.focus();
+				}
+			});
+
+			options.addEventListener('keydown', (event) => {
+				const buttons = [...options.querySelectorAll('button[data-style]')];
+				const currentIndex = buttons.indexOf(document.activeElement);
+				const moveKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+				if (!moveKeys.includes(event.key) && !['Enter', ' '].includes(event.key)) return;
+
+				event.preventDefault();
+				if (event.key === 'Enter' || event.key === ' ') {
+					selectStyle(document.activeElement);
+					setOpen(false);
+					toggle.focus();
+					return;
+				}
+
+				const lastIndex = buttons.length - 1;
+				let nextIndex = currentIndex < 0 ? 0 : currentIndex;
+				if (event.key === 'Home') nextIndex = 0;
+				if (event.key === 'End') nextIndex = lastIndex;
+				if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = currentIndex >= lastIndex ? 0 : currentIndex + 1;
+				if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = currentIndex <= 0 ? lastIndex : currentIndex - 1;
+				buttons[nextIndex]?.focus();
+			});
+
+			switcher.addEventListener('focusout', () => {
+				window.setTimeout(() => {
+					if (!switcher.contains(document.activeElement)) setOpen(false);
+				}, 0);
+			});
+
+			syncButtons(initial);
+			setOpen(false);
+			document.body.append(switcher);
+		});
+	})();
+</script>
 
 <style is:global set:html={themeCss} />
 

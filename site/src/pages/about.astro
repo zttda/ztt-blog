@@ -1,18 +1,19 @@
 ---
-import AboutHeroImage from '../assets/blog-placeholder-about.jpg';
+import AboutHeroImage from '../assets/blog-xs.png';
 import Layout from '../layouts/BlogPost.astro';
 ---
 
 <Layout
-	title="关于我"
-	description="关于 ztt 和这个博客的简单介绍。"
+	title="关于捞蛋"
+	description="关于捞蛋和这个博客的简单介绍。"
 	tags={['关于']}
 	pubDate={new Date('2026-03-21')}
 	heroImage={AboutHeroImage}
+	heroImageVariant="square"
 >
 	<p>
-		你好，我是 ztt。这个网站目前还是一个正在搭建中的个人博客，主要用来记录学习过程、
-		项目实践和一些阶段性的想法。
+		你好，我是捞蛋。这里是我的个人博客，用来记录学习过程、项目实践，
+		也分享一些想起来值得写下的东西。
 	</p>
 
 	<p>
@@ -21,7 +22,7 @@ import Layout from '../layouts/BlogPost.astro';
 	</p>
 
 	<p>
-		现在的页面、文章和图片还有不少占位内容。等结构稳定后，我会继续补上更完整的个人介绍、
-		作品展示、友链和真实文章。
+		博客还在一点点完善中。之后会继续补充文章、项目记录和友链，
+		把这里慢慢整理成属于自己的小小领地。
 	</p>
 </Layout>

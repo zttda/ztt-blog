@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-labelledby="title desc">
+	<title id="title">Noir window illustration</title>
+	<desc id="desc">A simple dark reading window with warm light and turquoise notes.</desc>
+	<rect width="320" height="240" rx="22" fill="#11100d"/>
+	<rect x="50" y="42" width="220" height="156" rx="12" fill="#1e1b16" stroke="#f06d4f" stroke-width="5"/>
+	<path d="M160 45v150M53 119h214" stroke="#4c4539" stroke-width="5"/>
+	<circle cx="219" cy="84" r="22" fill="#ffb35c"/>
+	<path d="M86 156h76M86 176h48" stroke="#4fc3c9" stroke-width="8" stroke-linecap="round"/>
+	<path d="M211 147c19 7 34 7 48 0" fill="none" stroke="#f06d4f" stroke-width="8" stroke-linecap="round"/>
+</svg>
