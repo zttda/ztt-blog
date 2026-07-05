@@ -1246,43 +1246,213 @@ def html_escape(value: Any) -> str:
 
 def base_panel_css() -> str:
     return """
-    :root { --accent:#2563eb; --ink:#111827; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --surface:#fff; }
+    :root {
+      --accent:#ef4f9a;
+      --accent-strong:#be185d;
+      --accent-soft:#ffe4f1;
+      --accent-2:#0f766e;
+      --accent-2-soft:#d9f8ee;
+      --ink:#172033;
+      --muted:#667085;
+      --line:#eadde7;
+      --bg:#fff7fb;
+      --surface:#fff;
+      --surface-soft:#fffafd;
+      --surface-tint:#fff3dc;
+      --danger:#dc2626;
+      --danger-soft:#fee2e2;
+      --shadow:0 22px 70px rgba(146, 64, 110, .14);
+      --shadow-soft:0 10px 32px rgba(146, 64, 110, .08);
+      --radius:22px;
+      --radius-sm:14px;
+    }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft YaHei", system-ui, sans-serif; line-height:1.6; }
-    header { position:sticky; top:0; background:rgba(255,255,255,.94); border-bottom:1px solid var(--line); backdrop-filter:blur(12px); z-index:2; }
-    .wrap { width:min(1180px, calc(100% - 32px)); margin:0 auto; }
-    header .wrap { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 0; }
-    main.wrap { padding:28px 0 48px; }
-    h1,h2,h3 { margin:0 0 10px; line-height:1.25; }
+    html { scroll-behavior:smooth; }
+    body {
+      min-height:100vh;
+      margin:0;
+      background:
+        radial-gradient(circle at 8% 8%, rgba(255, 214, 239, .95), transparent 30rem),
+        radial-gradient(circle at 92% 0%, rgba(196, 239, 255, .85), transparent 34rem),
+        linear-gradient(135deg, #fffaf3 0%, #fff7fb 48%, #f3fbff 100%);
+      color:var(--ink);
+      font-family:"Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      line-height:1.6;
+    }
+    body::before {
+      position:fixed;
+      inset:0;
+      z-index:-1;
+      pointer-events:none;
+      content:"";
+      background-image:
+        linear-gradient(rgba(190, 24, 93, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 118, 110, .045) 1px, transparent 1px);
+      background-size:34px 34px;
+      mask-image:linear-gradient(to bottom, rgba(0,0,0,.8), transparent 72%);
+    }
+    header {
+      position:sticky;
+      top:0;
+      z-index:10;
+      border-bottom:1px solid rgba(234, 221, 231, .8);
+      background:rgba(255, 250, 253, .82);
+      backdrop-filter:blur(20px);
+      box-shadow:0 10px 30px rgba(146, 64, 110, .06);
+    }
+    .wrap { width:min(1240px, calc(100% - 32px)); margin:0 auto; }
+    header .wrap { display:flex; justify-content:space-between; align-items:center; gap:18px; padding:18px 0; }
+    main.wrap { padding:28px 0 56px; }
+    h1,h2,h3 { margin:0 0 10px; line-height:1.18; letter-spacing:-.02em; }
+    h1 { font-size:clamp(2rem, 4vw, 3.7rem); }
+    h2 { font-size:clamp(1.25rem, 2vw, 1.7rem); }
+    h3 { font-size:1.05rem; }
     p { margin:0 0 12px; }
-    a { color:var(--accent); }
-    .status { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
-    .metric, .panel { border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:16px; box-shadow:0 8px 28px rgba(15,23,42,.05); }
-    .metric strong { display:block; font-size:1.6rem; }
-    .metric span, .muted { color:var(--muted); }
-    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
-    label { display:block; color:var(--muted); font-size:.92rem; margin:10px 0 4px; }
-    input, select, textarea { width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; background:#fff; }
+    a { color:var(--accent-strong); }
+    a:hover { color:#9d174d; }
+    form { margin:0; }
+    .muted { color:var(--muted); }
+    .eyebrow {
+      margin:0 0 8px;
+      color:var(--accent-strong);
+      font-size:.78rem;
+      font-weight:900;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+    .status { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin:0 0 20px; }
+    .metric {
+      position:relative;
+      overflow:hidden;
+      min-height:118px;
+      border:1px solid rgba(234, 221, 231, .9);
+      border-radius:var(--radius);
+      background:linear-gradient(145deg, rgba(255,255,255,.94), rgba(255,250,253,.82));
+      padding:18px;
+      box-shadow:var(--shadow-soft);
+    }
+    .metric::after {
+      position:absolute;
+      right:-26px;
+      bottom:-30px;
+      width:92px;
+      height:92px;
+      border-radius:999px;
+      background:var(--accent-soft);
+      content:"";
+    }
+    .metric.is-ok::after { background:var(--accent-2-soft); }
+    .metric.is-warn::after { background:var(--surface-tint); }
+    .metric strong { position:relative; z-index:1; display:block; font-size:clamp(1.65rem, 3vw, 2.35rem); line-height:1; letter-spacing:-.04em; }
+    .metric span { position:relative; z-index:1; display:block; margin-top:10px; color:var(--muted); font-size:.9rem; font-weight:700; }
+    .metric small { position:relative; z-index:1; display:block; margin-top:6px; color:#8a7180; font-size:.78rem; }
+    .panel {
+      border:1px solid rgba(234, 221, 231, .92);
+      background:rgba(255,255,255,.88);
+      border-radius:var(--radius);
+      padding:20px;
+      box-shadow:var(--shadow-soft);
+    }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:start; }
+    .section-title {
+      grid-column:1 / -1;
+      padding:26px 4px 6px;
+    }
+    .section-title h2 { margin:0 0 6px; }
+    .section-title p { margin:0; color:var(--muted); }
+    label { display:block; color:#6f5968; font-size:.9rem; font-weight:800; margin:12px 0 6px; }
+    input, select, textarea {
+      width:100%;
+      min-height:44px;
+      border:1px solid rgba(226, 200, 216, .95);
+      border-radius:14px;
+      background:rgba(255,255,255,.96);
+      color:var(--ink);
+      font:inherit;
+      padding:10px 13px;
+      outline:none;
+      transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color:rgba(239, 79, 154, .78);
+      box-shadow:0 0 0 4px rgba(239, 79, 154, .14);
+      background:#fff;
+    }
     input[type="number"] { min-width:72px; }
-    input[type="range"] { padding:0; }
-    textarea { min-height:84px; resize:vertical; }
-    .body-editor { min-height:420px; font-family:Consolas, "Microsoft YaHei", monospace; line-height:1.55; }
-    .hint { display:block; margin-top:4px; color:var(--muted); font-size:.86rem; }
-    .compact { display:flex; align-items:center; gap:6px; margin:0; color:var(--ink); white-space:nowrap; }
+    input[type="range"] { min-height:34px; padding:0; accent-color:var(--accent); }
+    input[type="file"] { padding:9px 12px; }
+    input[type="checkbox"] { width:1.05rem; min-height:auto; accent-color:var(--accent); }
+    textarea { min-height:96px; resize:vertical; }
+    .body-editor { min-height:420px; font-family:Consolas, "Cascadia Mono", "Microsoft YaHei", monospace; line-height:1.58; }
+    .hint { display:block; margin-top:6px; color:#81717d; font-size:.84rem; }
+    .compact { display:flex; align-items:center; gap:8px; margin:8px 0; color:var(--ink); white-space:nowrap; }
     .compact input { width:auto; }
     .field-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }
-    .range-line { display:grid; grid-template-columns:minmax(0,1fr) 4.5rem; gap:10px; align-items:center; }
-    button, .button { display:inline-flex; align-items:center; justify-content:center; min-height:38px; border:0; border-radius:8px; background:var(--accent); color:#fff; padding:8px 14px; font-weight:700; text-decoration:none; cursor:pointer; }
-    button.secondary, .button.secondary { background:#111827; }
-    button.ghost, .button.ghost { background:#eef2ff; color:#1e40af; min-height:32px; }
-    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-    pre { white-space:pre-wrap; overflow:auto; background:#0f172a; color:#e5e7eb; border-radius:8px; padding:12px; max-height:360px; }
-    .result.ok { border-color:#86efac; }
-    .result.bad { border-color:#fca5a5; }
-    table { width:100%; border-collapse:collapse; font-size:.92rem; }
-    th,td { border-bottom:1px solid var(--line); text-align:left; padding:10px; vertical-align:top; }
-    .wide { grid-column:1 / -1; }
-    @media (max-width: 900px) { .status, .grid { grid-template-columns:1fr; } header .wrap { align-items:flex-start; flex-direction:column; } }
+    .range-line { display:grid; grid-template-columns:minmax(0,1fr) 5rem; gap:10px; align-items:center; }
+    button, .button {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:44px;
+      border:0;
+      border-radius:999px;
+      background:linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color:#fff;
+      padding:9px 18px;
+      font-weight:900;
+      text-decoration:none;
+      cursor:pointer;
+      box-shadow:0 12px 28px rgba(190, 24, 93, .18);
+      transition:transform .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+    button:hover, .button:hover { transform:translateY(-1px); box-shadow:0 16px 34px rgba(190, 24, 93, .23); color:#fff; }
+    button:focus-visible, .button:focus-visible { outline:3px solid rgba(239, 79, 154, .35); outline-offset:3px; }
+    button.secondary, .button.secondary { background:#172033; color:#fff; box-shadow:0 12px 28px rgba(23, 32, 51, .14); }
+    button.ghost, .button.ghost {
+      min-height:38px;
+      border:1px solid rgba(239, 79, 154, .18);
+      background:rgba(255, 228, 241, .78);
+      color:#9d174d;
+      box-shadow:none;
+    }
+    button.ghost:hover, .button.ghost:hover { background:#ffd7eb; color:#831843; box-shadow:0 10px 24px rgba(190, 24, 93, .12); }
+    button.danger, .button.danger { background:var(--danger-soft); color:var(--danger); }
+    button.danger:hover, .button.danger:hover { background:#fecaca; color:#991b1b; box-shadow:0 10px 24px rgba(220, 38, 38, .13); }
+    button:disabled, .button[aria-disabled="true"] { cursor:not-allowed; opacity:.48; transform:none; box-shadow:none; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+    pre {
+      white-space:pre-wrap;
+      overflow:auto;
+      max-height:360px;
+      border-radius:16px;
+      background:#161b2f;
+      color:#edf2ff;
+      padding:14px;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+    }
+    .result.ok { border-color:#86efac; background:linear-gradient(135deg,#f0fdf4,#fff); }
+    .result.bad { border-color:#fca5a5; background:linear-gradient(135deg,#fff1f2,#fff); }
+    table { width:100%; min-width:760px; border-collapse:separate; border-spacing:0; font-size:.91rem; }
+    th,td { border-bottom:1px solid rgba(234, 221, 231, .86); text-align:left; padding:12px; vertical-align:top; }
+    th { color:#7a6071; font-size:.78rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+    tr:last-child td { border-bottom:0; }
+    tbody tr:hover { background:rgba(255, 228, 241, .24); }
+    .badge { display:inline-flex; align-items:center; min-height:28px; border-radius:999px; padding:3px 10px; background:#eef2ff; color:#3730a3; font-size:.82rem; font-weight:900; white-space:nowrap; }
+    .badge-draft { background:var(--surface-tint); color:#92400e; }
+    .badge-published { background:var(--accent-2-soft); color:#047857; }
+    .wide { grid-column:1 / -1; overflow-x:auto; }
+    @media (max-width: 900px) {
+      .wrap { width:min(100% - 22px, 1240px); }
+      header .wrap { align-items:flex-start; flex-direction:column; }
+      main.wrap { padding-top:18px; }
+      .status, .grid, .field-grid, .range-line { grid-template-columns:1fr; }
+      button, .button { width:100%; }
+      .actions { width:100%; }
+      .actions form { flex:1 1 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; }
+    }
     """
 
 
@@ -1310,28 +1480,33 @@ def render_editor_page(
     {base_panel_css()}
     body {{ height:100vh; overflow:hidden; }}
     header {{ position:static; }}
-    .editor-shell {{ display:grid; grid-template-columns:minmax(0,1fr) minmax(360px,.9fr); height:calc(100vh - 86px); }}
-    .editor-pane, .preview-pane {{ min-width:0; min-height:0; display:flex; flex-direction:column; }}
-    .editor-pane {{ border-right:1px solid var(--line); background:#0f172a; }}
-    .editor-toolbar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid rgba(226,232,240,.18); background:#111827; color:#e5e7eb; }}
-    .editor-toolbar code {{ color:#bfdbfe; }}
-    .editor-toolbar input[type="file"] {{ width:auto; max-width:260px; border-color:#334155; background:#0f172a; color:#e5e7eb; }}
-    .editor-toolbar .button, .editor-toolbar button {{ min-height:34px; }}
+    .editor-shell {{ display:grid; grid-template-columns:minmax(0,1.04fr) minmax(380px,.96fr); gap:16px; height:calc(100vh - 102px); padding:0 16px 16px; }}
+    .editor-pane, .preview-pane {{ min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(234, 221, 231, .9); border-radius:24px; box-shadow:var(--shadow); }}
+    .editor-pane {{ background:#12162b; }}
+    .editor-toolbar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:14px; border-bottom:1px solid rgba(255,255,255,.1); background:linear-gradient(135deg,#171b34,#241a32); color:#f8fafc; }}
+    .editor-toolbar code {{ border-radius:999px; background:rgba(255,255,255,.08); color:#fbcfe8; padding:3px 9px; }}
+    .editor-toolbar .compact {{ margin:0; color:#e8edf8; }}
+    .editor-toolbar input[type="file"] {{ width:auto; max-width:280px; min-height:40px; border-color:rgba(255,255,255,.16); background:rgba(255,255,255,.08); color:#e8edf8; }}
+    .editor-toolbar .button, .editor-toolbar button {{ min-height:38px; }}
+    .editor-toolbar .ghost {{ border-color:rgba(255,255,255,.14); background:rgba(255,255,255,.1); color:#fbcfe8; }}
     .editor-status {{ margin-left:auto; color:#cbd5e1; font-size:.92rem; }}
-    #source-editor {{ flex:1; width:100%; min-height:0; border:0; border-radius:0; background:#0f172a; color:#e5e7eb; padding:18px; font:15px/1.6 Consolas, "Cascadia Mono", "Microsoft YaHei", monospace; resize:none; outline:none; tab-size:2; }}
+    .editor-status.is-dirty {{ color:#fde68a; }}
+    .editor-metrics {{ border:1px solid rgba(255,255,255,.12); border-radius:999px; background:rgba(255,255,255,.07); color:#dbeafe; padding:3px 9px; font-size:.84rem; white-space:nowrap; }}
+    #restore-draft-button[hidden] {{ display:none; }}
+    #source-editor {{ flex:1; width:100%; min-height:0; border:0; border-radius:0; background:#101426; color:#f8fafc; padding:22px; font:15px/1.65 Consolas, "Cascadia Mono", "Microsoft YaHei", monospace; resize:none; outline:none; tab-size:2; caret-color:#f472b6; }}
     .preview-pane {{ background:#fff; }}
-    .preview-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line); }}
-    .preview-body {{ flex:1; overflow:auto; padding:24px; }}
-    .preview-body img {{ max-width:100%; border-radius:8px; }}
+    .preview-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(234, 221, 231, .86); background:rgba(255,250,253,.86); }}
+    .preview-body {{ flex:1; overflow:auto; padding:28px; background:#fff; }}
+    .preview-body img {{ max-width:100%; border-radius:14px; }}
     .article-preview {{ max-width:760px; margin:0 auto; }}
-    .article-cover {{ width:100%; aspect-ratio:2 / 1; object-fit:cover; margin-bottom:22px; box-shadow:0 12px 36px rgba(15,23,42,.12); }}
+    .article-cover {{ width:100%; aspect-ratio:2 / 1; object-fit:cover; margin-bottom:22px; box-shadow:var(--shadow-soft); }}
     .article-title {{ font-size:clamp(2rem, 5vw, 3.6rem); line-height:1.1; margin-bottom:10px; text-align:center; }}
     .article-meta, .article-description {{ color:var(--muted); text-align:center; }}
     .article-tags {{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:14px 0 24px; }}
-    .article-tag {{ border-radius:999px; background:#dbeafe; color:#1e40af; padding:2px 10px; font-size:.9rem; }}
+    .article-tag {{ border-radius:999px; background:var(--accent-soft); color:var(--accent-strong); padding:3px 11px; font-size:.9rem; font-weight:800; }}
     .article-divider {{ border:0; border-top:1px solid var(--line); margin:22px 0; }}
     .preview-body pre {{ max-height:none; }}
-    .preview-body iframe {{ width:100%; min-height:70vh; border:1px solid var(--line); border-radius:8px; background:#fff; }}
+    .preview-body iframe {{ width:100%; min-height:70vh; border:1px solid var(--line); border-radius:16px; background:#fff; }}
     .site-preview-frame {{ height:100%; min-height:0 !important; border:0 !important; border-radius:0 !important; }}
     .preview-body table {{ margin:1rem 0; }}
     .preview-body blockquote {{ margin:1rem 0; padding-left:1rem; border-left:4px solid var(--accent); color:var(--muted); }}
@@ -1366,7 +1541,9 @@ def render_editor_page(
         </label>
         <button class="ghost" id="upload-button" type="button">插入图片</button>
         <span>类型：<code id="file-kind">{html_escape(kind)}</code></span>
+        <button class="ghost" id="restore-draft-button" type="button" hidden>Restore draft</button>
         <span class="editor-status" id="editor-status">{status_html}</span>
+        <span class="editor-metrics" id="editor-metrics"></span>
       </div>
       <textarea id="source-editor" spellcheck="false">{html_escape(content)}</textarea>
     </section>
@@ -1388,7 +1565,13 @@ def render_editor_page(
     const editor = document.getElementById('source-editor');
     const preview = document.getElementById('preview');
     const status = document.getElementById('editor-status');
+    const metrics = document.getElementById('editor-metrics');
+    const restoreDraftButton = document.getElementById('restore-draft-button');
     const fileKind = document.getElementById('file-kind');
+    const draftPrefix = 'blog-panel-source-draft:v1:';
+    let savedSource = editor.value;
+    let autosaveTimer = null;
+    let currentDraftKey = draftKey();
 
     function escapeHtml(value) {{
       return String(value).replace(/[&<>"']/g, (char) => ({{
@@ -1398,6 +1581,80 @@ def render_editor_page(
         '"': '&quot;',
         "'": '&#39;',
       }}[char]));
+    }}
+
+    function draftKey() {{
+      return draftPrefix + (currentFile || '__new_post__') + ':' + suffix;
+    }}
+
+    function countSource(value) {{
+      const cjkChars = value.match(/[\\u3400-\\u9fff]/g) || [];
+      const latinWords = value.match(/[A-Za-z0-9_]+(?:[-'][A-Za-z0-9_]+)*/g) || [];
+      return {{
+        chars: Array.from(value).length,
+        words: cjkChars.length + latinWords.length,
+      }};
+    }}
+
+    function readDraft(key = currentDraftKey) {{
+      try {{
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      }} catch {{
+        return null;
+      }}
+    }}
+
+    function writeDraft() {{
+      if (editor.value === savedSource) {{
+        clearDraft(currentDraftKey);
+        return;
+      }}
+      try {{
+        localStorage.setItem(currentDraftKey, JSON.stringify({{
+          content: editor.value,
+          file: currentFile,
+          suffix,
+          updatedAt: Date.now(),
+        }}));
+      }} catch {{}}
+    }}
+
+    function clearDraft(key = currentDraftKey) {{
+      try {{
+        localStorage.removeItem(key);
+      }} catch {{}}
+    }}
+
+    function updateDraftRestore() {{
+      const draft = readDraft();
+      restoreDraftButton.hidden = !(draft && draft.content && draft.content !== editor.value);
+    }}
+
+    function updateEditorMeta(message = '') {{
+      const counts = countSource(editor.value);
+      metrics.textContent = 'Chars ' + counts.chars + ' / Words ' + counts.words;
+      const dirty = editor.value !== savedSource;
+      status.classList.toggle('is-dirty', dirty);
+      if (message) {{
+        status.textContent = message;
+      }} else {{
+        status.textContent = dirty ? 'Unsaved edits' : 'Saved';
+      }}
+    }}
+
+    function queueAutosave() {{
+      window.clearTimeout(autosaveTimer);
+      autosaveTimer = window.setTimeout(() => {{
+        writeDraft();
+        updateDraftRestore();
+      }}, 600);
+    }}
+
+    function handleEditorChange(message = '') {{
+      renderPreview();
+      queueAutosave();
+      updateEditorMeta(message);
     }}
 
     function inlineMarkdown(value) {{
@@ -1552,11 +1809,12 @@ def render_editor_page(
       const cursor = before.length + insertion.length;
       editor.focus();
       editor.setSelectionRange(cursor, cursor);
-      renderPreview();
+      handleEditorChange();
     }}
 
     async function saveSource() {{
       status.textContent = '保存中...';
+      const previousDraftKey = currentDraftKey;
       const body = new URLSearchParams();
       body.set('file', currentFile);
       body.set('content', editor.value);
@@ -1564,6 +1822,10 @@ def render_editor_page(
       const response = await fetch('/action/save_source', {{ method: 'POST', body }});
       const text = await response.text();
       status.textContent = text;
+      if (!response.ok) {{
+        updateEditorMeta(text || 'Save failed');
+        return;
+      }}
       const match = text.match(/^已保存：(.+)$/);
       if (match) {{
         currentFile = match[1];
@@ -1572,6 +1834,12 @@ def render_editor_page(
         history.replaceState(null, '', editPath + '?file=' + encodeURIComponent(currentFile));
         if (siteRoute) renderPreview();
       }}
+      savedSource = editor.value;
+      clearDraft(previousDraftKey);
+      currentDraftKey = draftKey();
+      clearDraft(currentDraftKey);
+      updateDraftRestore();
+      updateEditorMeta(text || 'Saved');
     }}
 
     async function uploadImages() {{
@@ -1596,7 +1864,15 @@ def render_editor_page(
 
     document.getElementById('save-button').addEventListener('click', saveSource);
     document.getElementById('upload-button').addEventListener('click', uploadImages);
-    editor.addEventListener('input', renderPreview);
+    restoreDraftButton.addEventListener('click', () => {{
+      const draft = readDraft();
+      if (!draft || typeof draft.content !== 'string') return;
+      editor.value = draft.content;
+      handleEditorChange('Restored local draft');
+      restoreDraftButton.hidden = true;
+      editor.focus();
+    }});
+    editor.addEventListener('input', () => handleEditorChange());
     editor.addEventListener('keydown', (event) => {{
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {{
         event.preventDefault();
@@ -1607,7 +1883,14 @@ def render_editor_page(
         insertAtCursor('  ');
       }}
     }});
+    window.addEventListener('beforeunload', (event) => {{
+      if (editor.value === savedSource) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }});
+    updateDraftRestore();
     renderPreview();
+    updateEditorMeta(status.textContent.trim());
   </script>
 </body>
 </html>"""
@@ -1661,7 +1944,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <td>
             <form method="post" action="/action/delete_friend">
               <input type="hidden" name="url" value="{html_escape(friend.get('url', ''))}">
-              <button class="ghost" type="submit">删除</button>
+              <button class="ghost danger" type="submit">删除</button>
             </form>
           </td>
         </tr>
@@ -1758,7 +2041,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         post_row_parts.append(
             f"""
         <tr>
-          <td>{'草稿' if post['draft'] else '已发布'}</td>
+          <td><span class="badge {'badge-draft' if post['draft'] else 'badge-published'}">{'草稿' if post['draft'] else '已发布'}</span></td>
           <td>{html_escape(post['title'])}</td>
           <td>{html_escape(post['date'])}</td>
           <td>{html_escape(', '.join(post['tags']))}</td>
@@ -1808,6 +2091,9 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
     douyin_preview_href = html_escape(footer.get("douyinHref") or "#")
     bilibili_preview_class = "" if footer.get("bilibiliHref") else " is-empty"
     bilibili_preview_href = html_escape(footer.get("bilibiliHref") or "#")
+    draft_metric_class = "is-warn" if drafts else "is-ok"
+    preview_metric_class = "is-ok" if preview_running else "is-warn"
+    deps_metric_class = "is-ok" if deps_ready else "is-warn"
     preview_url = f"http://{PREVIEW_HOST}:{PREVIEW_PORT}/"
     embedded_preview_html = (
         f'<iframe src="{preview_url}" title="网站实时预览"></iframe>'
@@ -1822,52 +2108,22 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>博客控制面板</title>
   <style>
-    :root {{ --accent:#2563eb; --accent-2:#0f766e; --ink:#111827; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --surface:#fff; }}
-    * {{ box-sizing: border-box; }}
-    html {{ scroll-behavior:smooth; }}
-    body {{ margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft YaHei", system-ui, sans-serif; line-height:1.6; }}
-    header {{ position:sticky; top:0; background:rgba(255,255,255,.94); border-bottom:1px solid var(--line); backdrop-filter:blur(12px); z-index:2; }}
-    .wrap {{ width:min(1180px, calc(100% - 32px)); margin:0 auto; }}
-    header .wrap {{ display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 0; }}
-    main.wrap {{ padding:28px 0 48px; }}
-    h1,h2,h3 {{ margin:0 0 10px; line-height:1.25; }}
-    p {{ margin:0 0 12px; }}
-    a {{ color:var(--accent); }}
-    .status {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:18px; }}
-    .metric, .panel {{ border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:16px; box-shadow:0 8px 28px rgba(15,23,42,.05); }}
-    .metric strong {{ display:block; font-size:1.6rem; }}
-    .metric span, .muted {{ color:var(--muted); }}
-    .panel-nav {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; padding:8px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.82); box-shadow:0 10px 30px rgba(15,23,42,.06); }}
-    .panel-nav a {{ flex:1 1 120px; border-radius:999px; padding:9px 14px; color:#334155; text-align:center; text-decoration:none; font-weight:700; }}
-    .panel-nav a:hover {{ background:#e0f2fe; color:#075985; }}
-    .quick-actions {{ margin-bottom:18px; background:linear-gradient(135deg,#fff 0%,#eff6ff 58%,#ecfdf5 100%); }}
-    .quick-actions-head {{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:10px; }}
+    {base_panel_css()}
+    .panel-nav {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px; padding:8px; border:1px solid rgba(234, 221, 231, .94); border-radius:999px; background:rgba(255,255,255,.72); box-shadow:var(--shadow-soft); backdrop-filter:blur(12px); }}
+    .panel-nav a {{ flex:1 1 128px; border-radius:999px; padding:10px 14px; color:#5f4556; text-align:center; text-decoration:none; font-weight:900; }}
+    .panel-nav a:hover {{ background:var(--accent-soft); color:var(--accent-strong); }}
+    .quick-actions {{ position:relative; overflow:hidden; margin-bottom:20px; padding:24px; background:linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(255,228,241,.82) 46%, rgba(217,248,238,.9) 100%); }}
+    .quick-actions::after {{ position:absolute; right:-90px; top:-120px; width:280px; height:280px; border:1px solid rgba(239,79,154,.22); border-radius:999px; content:""; }}
+    .quick-actions > * {{ position:relative; z-index:1; }}
+    .quick-actions-head {{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:12px; }}
+    .quick-actions .actions {{ margin-top:16px; }}
     .quick-actions form {{ margin:0; }}
-    .commit-line {{ display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:10px; align-items:end; margin-top:12px; }}
-    .dashboard-preview {{ margin-bottom:18px; overflow:hidden; padding:0; }}
-    .dashboard-preview-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }}
+    .commit-line {{ display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:12px; align-items:end; margin-top:16px; padding-top:16px; border-top:1px solid rgba(234, 221, 231, .72); }}
+    .dashboard-preview {{ margin-bottom:20px; overflow:hidden; padding:0; }}
+    .dashboard-preview-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:18px 20px; border-bottom:1px solid rgba(234, 221, 231, .86); background:rgba(255,250,253,.76); }}
     .dashboard-preview-head h2 {{ margin:0; }}
-    .dashboard-preview iframe {{ display:block; width:100%; min-height:520px; border:0; background:#fff; }}
-    .preview-placeholder {{ min-height:220px; display:grid; place-items:center; padding:28px; color:var(--muted); text-align:center; background:linear-gradient(135deg,#f8fafc,#eef2ff); }}
-    .grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }}
-    .section-title {{ grid-column:1 / -1; padding:18px 4px 2px; }}
-    .section-title h2 {{ margin:0; font-size:1.45rem; }}
-    .section-title p {{ margin:0; color:var(--muted); }}
-    label {{ display:block; color:var(--muted); font-size:.92rem; margin:10px 0 4px; }}
-    input, select, textarea {{ width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; background:#fff; }}
-    input[type="number"] {{ min-width:72px; }}
-    input[type="range"] {{ padding:0; }}
-    textarea {{ min-height:84px; resize:vertical; }}
-    .body-editor {{ min-height:420px; font-family:Consolas, "Microsoft YaHei", monospace; line-height:1.55; }}
-    .hint {{ display:block; margin-top:4px; color:var(--muted); font-size:.86rem; }}
-    .compact {{ display:flex; align-items:center; gap:6px; margin:0; color:var(--ink); white-space:nowrap; }}
-    .compact input {{ width:auto; }}
-    .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }}
-    .range-line {{ display:grid; grid-template-columns:minmax(0,1fr) 4.5rem; gap:10px; align-items:center; }}
-    button, .button {{ display:inline-flex; align-items:center; justify-content:center; min-height:38px; border:0; border-radius:8px; background:var(--accent); color:#fff; padding:8px 14px; font-weight:700; text-decoration:none; cursor:pointer; }}
-    button.secondary, .button.secondary {{ background:#111827; }}
-    button.ghost, .button.ghost {{ background:#eef2ff; color:#1e40af; min-height:32px; }}
-    .actions {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }}
+    .dashboard-preview iframe {{ display:block; width:100%; min-height:540px; border:0; background:#fff; }}
+    .preview-placeholder {{ min-height:260px; display:grid; place-items:center; padding:32px; color:var(--muted); text-align:center; background:radial-gradient(circle at 50% 25%, rgba(255,228,241,.95), transparent 15rem), linear-gradient(135deg,#fffafd,#f4fbff); }}
     .footer-icon-preview {{ display:flex; align-items:center; gap:12px; margin:14px 0 4px; padding:14px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; }}
     .footer-icon-preview strong {{ margin-right:auto; color:#334155; }}
     .panel-social {{ width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #dbe4ef; border-radius:999px; background:#fff; color:#23304b; text-decoration:none; transition:transform .18s ease, box-shadow .18s ease; }}
@@ -1876,19 +2132,14 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
     .panel-social svg {{ width:18px; height:18px; display:block; }}
     .panel-social.douyin {{ color:#111827; }}
     .panel-social.bilibili {{ color:#00aeec; }}
-    pre {{ white-space:pre-wrap; overflow:auto; background:#0f172a; color:#e5e7eb; border-radius:8px; padding:12px; max-height:360px; }}
-    .result.ok {{ border-color:#86efac; }}
-    .result.bad {{ border-color:#fca5a5; }}
-    table {{ width:100%; border-collapse:collapse; font-size:.92rem; }}
-    th,td {{ border-bottom:1px solid var(--line); text-align:left; padding:10px; vertical-align:top; }}
-    .wide {{ grid-column:1 / -1; }}
-    @media (max-width: 900px) {{ .status, .grid, .commit-line {{ grid-template-columns:1fr; }} header .wrap, .quick-actions-head, .dashboard-preview-head {{ align-items:flex-start; flex-direction:column; }} .panel-nav {{ border-radius:18px; }} .dashboard-preview iframe {{ min-height:420px; }} }}
+    @media (max-width: 900px) {{ .commit-line {{ grid-template-columns:1fr; }} .quick-actions-head, .dashboard-preview-head {{ align-items:flex-start; flex-direction:column; }} .panel-nav {{ border-radius:20px; }} .dashboard-preview iframe {{ min-height:420px; }} }}
   </style>
 </head>
 <body>
   <header>
     <div class="wrap">
       <div>
+        <p class="eyebrow">Local Blog Studio</p>
         <h1>博客控制面板</h1>
         <p class="muted">本地工具，只操作 D:\\Blog 里的静态博客文件。</p>
       </div>
@@ -1931,11 +2182,11 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
       <a href="#data-section">友链数据</a>
     </nav>
     <section class="status">
-      <div class="metric"><strong>{len(posts)}</strong><span>文章总数</span></div>
-      <div class="metric"><strong>{len(drafts)}</strong><span>草稿</span></div>
-      <div class="metric"><strong>{len(friends)}</strong><span>友链</span></div>
-      <div class="metric"><strong>{'运行中' if preview_running else '未启动'}</strong><span>本地预览</span></div>
-      <div class="metric"><strong>{'已安装' if deps_ready else '未安装'}</strong><span>项目依赖</span></div>
+      <div class="metric"><strong>{len(posts)}</strong><span>文章总数</span><small>包含已发布和草稿</small></div>
+      <div class="metric {draft_metric_class}"><strong>{len(drafts)}</strong><span>草稿</span><small>写完后可一键发布</small></div>
+      <div class="metric"><strong>{len(friends)}</strong><span>友链</span><small>朋友们的小入口</small></div>
+      <div class="metric {preview_metric_class}"><strong>{'运行中' if preview_running else '未启动'}</strong><span>本地预览</span><small>保存后对照效果</small></div>
+      <div class="metric {deps_metric_class}"><strong>{'已安装' if deps_ready else '未安装'}</strong><span>项目依赖</span><small>构建前需要就绪</small></div>
     </section>
     <section class="panel dashboard-preview" id="site-preview">
       <div class="dashboard-preview-head">
