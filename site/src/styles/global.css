@@ -292,8 +292,8 @@ html[data-style="crayon-party"] {
 	--shadow-soft: 0 8px 22px rgba(47, 127, 230, 0.1);
 	--code-bg: rgba(47, 127, 230, 0.14);
 	--code-color: #205eb1;
-	--pre-bg: #26315a;
-	--pre-color: #fff6d8;
+	--pre-bg: rgba(255, 255, 255, 0.76);
+	--pre-color: #30223e;
 	--focus-ring: rgba(var(--accent-rgb), 0.2);
 	color-scheme: light;
 }
@@ -535,6 +535,70 @@ pre {
 
 pre > code {
 	all: unset;
+}
+
+.code-block-copy {
+	position: relative;
+	margin: 1.5rem 0;
+}
+
+.code-block-copy pre {
+	margin: 0;
+	padding-top: 3.2rem;
+}
+
+.copy-code-button {
+	position: absolute;
+	top: 0.72rem;
+	right: 0.72rem;
+	z-index: 1;
+	display: inline-flex;
+	min-height: 2rem;
+	align-items: center;
+	border: 1px solid rgba(var(--line), 0.82);
+	border-radius: 8px;
+	background: rgba(var(--surface), 0.92);
+	color: rgb(var(--ink));
+	font: inherit;
+	font-size: 0.82rem;
+	font-weight: 700;
+	line-height: 1;
+	padding: 0 0.72rem;
+	box-shadow: var(--shadow-soft);
+	cursor: pointer;
+	backdrop-filter: blur(10px);
+	transition:
+		background 0.18s ease,
+		color 0.18s ease,
+		transform 0.18s ease,
+		border-color 0.18s ease;
+}
+
+.copy-code-button:hover {
+	border-color: rgba(var(--accent-rgb), 0.42);
+	background: rgba(var(--surface-strong), 0.96);
+	color: var(--accent);
+	transform: translateY(-1px);
+}
+
+.copy-code-button[data-copy-state="done"] {
+	border-color: rgba(var(--accent-rgb), 0.36);
+	background: var(--accent-soft);
+	color: var(--accent-strong);
+}
+
+.copy-code-button[data-copy-state="error"] {
+	border-color: rgba(196, 73, 45, 0.36);
+	color: #8e2e1d;
+}
+
+html[data-style="crayon-party"] .prose pre.astro-code {
+	background: rgba(255, 255, 255, 0.78) !important;
+	color: #30223e !important;
+}
+
+html[data-style="crayon-party"] .prose pre.astro-code span {
+	color: inherit !important;
 }
 
 blockquote {
@@ -900,6 +964,10 @@ footer {
 	aspect-ratio: 16 / 9;
 	object-fit: cover;
 	border: 1px solid rgba(var(--line), 0.7);
+}
+
+.post-card img[src*="ai-xianxia-reference"] {
+	object-position: center top;
 }
 
 .post-meta,

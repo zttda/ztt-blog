@@ -12,7 +12,9 @@ type Props = CollectionEntry<'blog'>['data'] & {
 
 const { title, description, pubDate, updatedDate, heroImage, heroImageVariant = 'wide' } = Astro.props;
 const heroSrc = heroImage?.src ?? '';
-const isSquareHero = heroImageVariant === 'square' || heroSrc.includes('blog-xs.');
+const isSquareHero =
+	heroImageVariant === 'square' || heroSrc.includes('blog-xs.') || heroSrc.includes('ai-xianxia-reference.');
+const isTopAlignedHero = heroSrc.includes('ai-xianxia-reference.');
 ---
 
 <html lang="zh-CN">
@@ -60,6 +62,9 @@ const isSquareHero = heroImageVariant === 'square' || heroSrc.includes('blog-xs.
 				border-radius: 0;
 				box-shadow: none;
 				object-fit: cover;
+			}
+			.hero-image.hero-image--top img {
+				object-position: center top;
 			}
 			.prose {
 				width: 760px;
@@ -148,7 +153,7 @@ const isSquareHero = heroImageVariant === 'square' || heroSrc.includes('blog-xs.
 		<Header />
 		<main>
 			<article>
-				<div class:list={['hero-image', { 'hero-image--square': isSquareHero }]}>
+				<div class:list={['hero-image', { 'hero-image--square': isSquareHero, 'hero-image--top': isTopAlignedHero }]}>
 					{
 						heroImage && (
 							<Image
@@ -182,5 +187,95 @@ const isSquareHero = heroImageVariant === 'square' || heroSrc.includes('blog-xs.
 			</article>
 		</main>
 		<Footer />
+		<script>
+			const copyText = async (text) => {
+				const clipboard = globalThis.navigator?.clipboard;
+				if (clipboard?.writeText && globalThis.isSecureContext) {
+					try {
+						await clipboard.writeText(text);
+						return;
+					} catch {
+						// Fall back to the selection-based copy path below.
+					}
+				}
+
+				const textarea = document.createElement('textarea');
+				textarea.value = text;
+				textarea.setAttribute('readonly', '');
+				textarea.style.position = 'fixed';
+				textarea.style.top = '-9999px';
+				textarea.style.opacity = '0';
+				document.body.append(textarea);
+				textarea.focus();
+				textarea.select();
+				const copied = document.execCommand('copy');
+				textarea.remove();
+				if (!copied) throw new Error('Copy failed');
+			};
+
+			const copySelectionFromCodeBlock = (pre) => {
+				const target = pre.querySelector('code') ?? pre;
+				const selection = globalThis.getSelection?.();
+				if (!selection) return 'failed';
+
+				const range = document.createRange();
+				range.selectNodeContents(target);
+				selection.removeAllRanges();
+				selection.addRange(range);
+
+				return document.execCommand('copy') ? 'copied' : 'selected';
+			};
+
+			const enhanceCodeBlocks = () => {
+				document.querySelectorAll('.prose pre').forEach((pre) => {
+					if (!(pre instanceof HTMLElement) || pre.dataset.copyReady === 'true' || pre.closest('.code-block-copy')) return;
+
+					const wrapper = document.createElement('div');
+					wrapper.className = 'code-block-copy';
+
+					const button = document.createElement('button');
+					button.type = 'button';
+					button.className = 'copy-code-button';
+					button.textContent = '复制';
+					button.setAttribute('aria-label', '复制代码');
+
+					pre.dataset.copyReady = 'true';
+					pre.parentNode?.insertBefore(wrapper, pre);
+					wrapper.append(pre, button);
+
+					button.addEventListener('click', async () => {
+						const code = pre.querySelector('code')?.innerText ?? pre.innerText;
+						try {
+							await copyText(code.trimEnd());
+							button.textContent = '已复制';
+							button.dataset.copyState = 'done';
+						} catch {
+							const fallbackState = copySelectionFromCodeBlock(pre);
+							if (fallbackState === 'copied') {
+								button.textContent = '已复制';
+								button.dataset.copyState = 'done';
+							} else if (fallbackState === 'selected') {
+								button.textContent = '已选中';
+								button.dataset.copyState = 'done';
+							} else {
+								button.textContent = '复制失败';
+								button.dataset.copyState = 'error';
+							}
+						}
+
+						window.setTimeout(() => {
+							button.textContent = '复制';
+							delete button.dataset.copyState;
+						}, 2200);
+					});
+				});
+			};
+
+			if (document.readyState === 'loading') {
+				document.addEventListener('DOMContentLoaded', enhanceCodeBlocks, { once: true });
+			} else {
+				enhanceCodeBlocks();
+			}
+		</script>
 	</body>
 </html>

@@ -23,6 +23,8 @@ export async function getStaticPaths() {
 }
 
 const { tag, posts } = Astro.props;
+const isXianxiaReference = (src: unknown) =>
+	typeof src === 'object' && src !== null && 'src' in src && String(src.src).includes('ai-xianxia-reference');
 ---
 
 <!doctype html>
@@ -42,7 +44,13 @@ const { tag, posts } = Astro.props;
 					posts.map((post) => (
 						<a class="post-card" href={`/blog/${post.id}/`}>
 							{post.data.heroImage && (
-								<Image width={720} height={405} src={post.data.heroImage} alt={`${post.data.title} 封面`} />
+								<Image
+									width={720}
+									height={isXianxiaReference(post.data.heroImage) ? 540 : 405}
+									src={post.data.heroImage}
+									position={isXianxiaReference(post.data.heroImage) ? 'top' : undefined}
+									alt={`${post.data.title} 封面`}
+								/>
 							)}
 							<div>
 								<p class="post-meta">

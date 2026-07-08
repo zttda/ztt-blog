@@ -12,6 +12,8 @@ import { getPublishedPosts } from '../utils/posts';
 const posts = await getPublishedPosts();
 const latestPosts = posts.slice(0, 3);
 const allTags = [...new Set(posts.flatMap((post) => post.data.tags))].slice(0, 8);
+const isXianxiaReference = (src: unknown) =>
+	typeof src === 'object' && src !== null && 'src' in src && String(src.src).includes('ai-xianxia-reference');
 const opacity = (value: unknown, fallback: number) => {
 	const parsed = Number(value);
 	if (Number.isNaN(parsed)) return fallback;
@@ -73,7 +75,13 @@ const customSections = home.sections?.filter((section) => section.enabled) ?? []
 							latestPosts.map((post) => (
 								<a class="post-card" href={`/blog/${post.id}/`}>
 									{post.data.heroImage && (
-										<Image width={720} height={405} src={post.data.heroImage} alt={`${post.data.title} 封面`} />
+										<Image
+											width={720}
+											height={isXianxiaReference(post.data.heroImage) ? 540 : 405}
+											src={post.data.heroImage}
+											position={isXianxiaReference(post.data.heroImage) ? 'top' : undefined}
+											alt={`${post.data.title} 封面`}
+										/>
 									)}
 									<div>
 										<p class="post-meta">
