@@ -15,10 +15,10 @@ const fallbackAvatar = '/favicon.svg';
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Friends</p>
 			<h1>友链</h1>
-			<p class="page-lede">这里先放几个占位和已知朋友站点，后续可以慢慢换成真实友链。</p>
+			<p class="page-lede">这里记录朋友们的博客和常去的网站。</p>
 
 			<div class="callout">
 				<h2>本站信息</h2>
@@ -40,13 +40,14 @@ const fallbackAvatar = '/favicon.svg';
 						<a class="link-card" href={friend.url} target="_blank" rel="noopener noreferrer">
 							<img
 								src={friend.avatar || fallbackAvatar}
-								alt={`${friend.name} 头像`}
+								alt=""
 								loading="lazy"
 								onerror={`this.onerror=null;this.src='${fallbackAvatar}';`}
 							/>
 							<span>
 								<strong>{friend.name}</strong>
 								<span class="muted">{friend.description}</span>
+								<span class="sr-only">（在新窗口打开）</span>
 							</span>
 						</a>
 					))

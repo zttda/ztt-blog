@@ -8,6 +8,11 @@ const socialLinks = [
 	{ id: 'douyin', label: '抖音', href: footer.douyinHref },
 	{ id: 'bilibili', label: 'Bilibili', href: footer.bilibiliHref },
 ].filter((item) => item.href);
+const secondaryLinks = [
+	{ label: '归档', href: '/archive/' },
+	{ label: '标签', href: '/tags/' },
+	{ label: '搜索', href: '/search/' },
+];
 ---
 
 <footer>
@@ -15,13 +20,27 @@ const socialLinks = [
 		<p>{copyright}</p>
 		<p>
 			{footer.description}
-			{footer.showRss && footer.rssHref && footer.rssLabel && <a href={footer.rssHref}>{footer.rssLabel}</a>}
+			{footer.showRss && footer.rssHref && footer.rssLabel && (
+				<>
+					<span aria-hidden="true"> · </span>
+					<a href={footer.rssHref}>{footer.rssLabel}</a>
+				</>
+			)}
 		</p>
+		<nav class="footer-nav" aria-label="更多内容">
+			{secondaryLinks.map((item) => <a href={item.href}>{item.label}</a>)}
+		</nav>
 		{
 			socialLinks.length > 0 && (
 				<div class="footer-socials" aria-label="社交主页">
 					{socialLinks.map((item) => (
-						<a class={`social-link ${item.id}`} href={item.href} target="_blank" rel="noopener noreferrer" aria-label={item.label}>
+						<a
+							class={`social-link ${item.id}`}
+							href={item.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							aria-label={`${item.label}（在新窗口打开）`}
+						>
 							{item.id === 'douyin' ? (
 								<svg viewBox="0 0 24 24" aria-hidden="true">
 									<path d="M14.8 3v10.1a4.7 4.7 0 1 1-4.7-4.7c.5 0 1 .1 1.4.2v3.2a1.8 1.8 0 1 0 0 1.3V3h3.3c.4 2.5 2.1 4.3 4.7 4.7v3.2c-1.8-.1-3.4-.8-4.7-2v.1z" />
@@ -38,3 +57,27 @@ const socialLinks = [
 		}
 	</div>
 </footer>
+
+<style>
+	.footer-nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem 1rem;
+		margin-top: 0.8rem;
+	}
+
+	.footer-nav a {
+		display: inline-flex;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		align-items: center;
+		justify-content: center;
+		color: inherit;
+		padding-inline: 0.2rem;
+		text-underline-offset: 0.2em;
+	}
+
+	.footer-nav a:hover {
+		color: var(--accent);
+	}
+</style>

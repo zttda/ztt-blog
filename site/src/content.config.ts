@@ -8,10 +8,11 @@ const blog = defineCollection({
 	// Type-check frontmatter using a schema
 	schema: ({ image }) =>
 		z.object({
-			title: z.string(),
-			description: z.string(),
-			tags: z.array(z.string()).default([]),
-			draft: z.boolean().default(false),
+			title: z.string().trim().min(1, '文章标题不能为空').max(80, '文章标题最多 80 个字符'),
+			description: z.string().trim().min(1, '文章摘要不能为空').max(180, '文章摘要最多 180 个字符'),
+			tags: z.array(z.string().trim().min(1).max(30)).max(8, '一篇文章最多使用 8 个标签').default([]),
+			// Missing draft metadata must fail closed instead of publishing by accident.
+			draft: z.boolean().default(true),
 			// Transform string to Date object
 			pubDate: z.coerce.date(),
 			updatedDate: z.coerce.date().optional(),

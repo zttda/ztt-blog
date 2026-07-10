@@ -8,11 +8,11 @@ import { SITE_TITLE } from '../consts';
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`页面没找到 | ${SITE_TITLE}`} description="这个页面暂时不存在。" />
+		<BaseHead title={`页面没找到 | ${SITE_TITLE}`} description="这个页面暂时不存在。" robots="noindex, nofollow" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<section class="hero">
 				<div>
 					<p class="hero-kicker">404</p>

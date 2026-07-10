@@ -21,64 +21,113 @@ const posts = (await getPublishedPosts()).map((post) => ({
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`搜索 | ${SITE_TITLE}`} description="在博客文章中搜索标题、摘要和标签。" />
+		<BaseHead title={`搜索 | ${SITE_TITLE}`} description="在博客文章中搜索标题、摘要和标签。" schemaType="collection" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Search</p>
 			<h1>搜索</h1>
 			<p class="page-lede">纯前端搜索，不需要数据库。现在会搜索文章标题、摘要和标签。</p>
 
 			<div class="search-box">
-				<label class="sr-only" for="search-input">搜索文章</label>
-				<input id="search-input" type="search" placeholder="输入关键词，比如 Astro、部署、项目" autocomplete="off" />
+				<label class="search-label" for="search-input">搜索文章</label>
+				<input
+					id="search-input"
+					type="search"
+					placeholder="输入关键词，比如 Astro、部署、项目"
+					autocomplete="off"
+					maxlength="100"
+					aria-controls="search-results"
+					aria-describedby="search-status"
+				/>
 			</div>
-			<div id="search-results" class="archive-list"></div>
+			<p id="search-status" class="muted" role="status" aria-live="polite" aria-atomic="true"></p>
+			<div id="search-results" class="archive-list" role="list"></div>
 		</main>
 		<Footer />
 
-		<script define:vars={{ posts }}>
+		<script is:inline define:vars={{ posts }}>
 			const input = document.getElementById('search-input');
 			const results = document.getElementById('search-results');
+			const status = document.getElementById('search-status');
+			const initialQuery = (new URLSearchParams(window.location.search).get('q') ?? '').slice(0, 100);
+			let searchTimer;
 
-			function render(list) {
+			function render(list, keyword = '') {
 				if (!results) return;
-				results.innerHTML = list
-					.map(
-						(post) => `
-							<article class="archive-item">
-								<p class="archive-meta">${post.date}</p>
-								<div>
-									<a href="${post.url}">${post.title}</a>
-									<p class="muted">${post.description}</p>
-									<div class="tag-list">${post.tags
-										.map((tag) => `<span class="tag-pill">${tag}</span>`)
-										.join('')}</div>
-								</div>
-							</article>
-						`,
-					)
-					.join('');
+				results.replaceChildren();
+				if (status) {
+					status.textContent = keyword
+						? list.length > 0
+							? `找到 ${list.length} 篇相关文章。`
+							: `没有找到与“${keyword}”相关的文章。`
+						: `共 ${list.length} 篇文章。`;
+				}
+
+				for (const post of list) {
+					const article = document.createElement('article');
+					article.className = 'archive-item';
+					article.setAttribute('role', 'listitem');
+
+					const date = document.createElement('p');
+					date.className = 'archive-meta';
+					date.textContent = post.date;
+
+					const content = document.createElement('div');
+					const heading = document.createElement('h2');
+					const link = document.createElement('a');
+					link.href = post.url;
+					link.textContent = post.title;
+					heading.append(link);
+
+					const description = document.createElement('p');
+					description.className = 'muted';
+					description.textContent = post.description;
+
+					const tags = document.createElement('div');
+					tags.className = 'tag-list';
+					for (const tag of post.tags) {
+						const pill = document.createElement('span');
+						pill.className = 'tag-pill';
+						pill.textContent = tag;
+						tags.append(pill);
+					}
+
+					content.append(heading, description, tags);
+					article.append(date, content);
+					results.append(article);
+				}
 			}
 
-			function search(value) {
+			function search(value, syncUrl = true) {
 				const keyword = value.trim().toLowerCase();
+				if (syncUrl) {
+					const url = new URL(window.location.href);
+					if (value.trim()) url.searchParams.set('q', value.trim());
+					else url.searchParams.delete('q');
+					window.history.replaceState({}, '', url);
+				}
 				if (!keyword) {
 					render(posts);
 					return;
 				}
-				render(
+				const matches =
 					posts.filter((post) =>
 						[post.title, post.description, ...post.tags].some((item) =>
 							item.toLowerCase().includes(keyword),
 						),
-					),
-				);
+					);
+				render(matches, value.trim());
 			}
 
-			input?.addEventListener('input', (event) => search(event.target.value));
-			render(posts);
+			input?.addEventListener('input', (event) => {
+				if (!(event.target instanceof HTMLInputElement)) return;
+				window.clearTimeout(searchTimer);
+				searchTimer = window.setTimeout(() => search(event.target.value), 180);
+			});
+			if (input instanceof HTMLInputElement) input.value = initialQuery;
+			search(initialQuery, false);
 		</script>
 	</body>
 </html>

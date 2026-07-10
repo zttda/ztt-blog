@@ -12,11 +12,11 @@ const posts = await getPublishedPosts();
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`归档 | ${SITE_TITLE}`} description="按时间归档的博客文章。" />
+		<BaseHead title={`归档 | ${SITE_TITLE}`} description="按时间归档的博客文章。" schemaType="collection" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Archive</p>
 			<h1>归档</h1>
 			<p class="page-lede">文章会按发布时间倒序排列，方便回看每个阶段留下的记录。</p>
@@ -29,7 +29,7 @@ const posts = await getPublishedPosts();
 								<FormattedDate date={post.data.pubDate} />
 							</p>
 							<div>
-								<a href={`/blog/${post.id}/`}>{post.data.title}</a>
+								<h2><a href={`/blog/${post.id}/`}>{post.data.title}</a></h2>
 								<p class="muted">{post.data.description}</p>
 							</div>
 						</article>

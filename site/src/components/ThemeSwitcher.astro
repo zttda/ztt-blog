@@ -1,0 +1,132 @@
+---
+import { DARK_THEME_IDS, DEFAULT_THEME_ID, THEMES, THEME_STORAGE_KEY } from '../data/themes';
+
+const defaultTheme = THEMES.find((theme) => theme.id === DEFAULT_THEME_ID) ?? THEMES[0];
+---
+
+<div
+	class="theme-switcher"
+	data-theme-switcher
+	data-storage-key={THEME_STORAGE_KEY}
+	data-dark-themes={DARK_THEME_IDS.join(',')}
+	data-default-theme={DEFAULT_THEME_ID}
+>
+	<button
+		type="button"
+		class="theme-toggle"
+		aria-label={`选择视觉风格，当前：${defaultTheme.label}`}
+		aria-expanded="false"
+		aria-controls="theme-options"
+		style={`--active-swatch: ${defaultTheme.swatch}`}
+	>
+		<span class="theme-toggle-preview" aria-hidden="true"></span>
+		<span class="theme-toggle-copy">
+			<span>风格</span>
+			<strong data-theme-name>{defaultTheme.label}</strong>
+		</span>
+	</button>
+
+	<fieldset class="theme-options" id="theme-options" hidden inert aria-hidden="true">
+		<legend>选择视觉风格</legend>
+		<div class="theme-option-grid">
+			{
+				THEMES.map((theme) => (
+					<label class="theme-option">
+						<input
+							class="sr-only"
+							type="radio"
+							name="blog-visual-style"
+							value={theme.id}
+							data-label={theme.label}
+							checked={theme.id === DEFAULT_THEME_ID}
+						/>
+						<span class="theme-swatch" style={`--swatch: ${theme.swatch}`} aria-hidden="true"></span>
+						<span>{theme.label}</span>
+					</label>
+				))
+			}
+		</div>
+	</fieldset>
+</div>
+
+<script>
+	const switcher = document.querySelector('[data-theme-switcher]');
+
+	if (switcher instanceof HTMLElement && switcher.dataset.ready !== 'true') {
+		switcher.dataset.ready = 'true';
+		const toggle = switcher.querySelector('.theme-toggle');
+		const options = switcher.querySelector('.theme-options');
+		const currentName = switcher.querySelector('[data-theme-name]');
+		const radios = [...switcher.querySelectorAll('input[name="blog-visual-style"]')].filter(
+			(input) => input instanceof HTMLInputElement,
+		);
+		const ids = radios.map((radio) => radio.value);
+		const darkThemes = (switcher.dataset.darkThemes ?? '').split(',').filter(Boolean);
+		const storageKey = switcher.dataset.storageKey ?? 'blog-style-v2';
+		const defaultThemeId = switcher.dataset.defaultTheme ?? radios[0]?.value ?? 'crayon-party';
+
+		const applyStyle = (id: string) => {
+			document.documentElement.dataset.style = id;
+			document.documentElement.style.colorScheme = darkThemes.includes(id) ? 'dark' : 'light';
+		};
+
+		const setOpen = (open: boolean, restoreFocus = false) => {
+			if (!(toggle instanceof HTMLButtonElement) || !(options instanceof HTMLFieldSetElement)) return;
+			switcher.classList.toggle('is-open', open);
+			toggle.setAttribute('aria-expanded', String(open));
+			options.hidden = !open;
+			options.inert = !open;
+			options.setAttribute('aria-hidden', String(!open));
+			if (!open && restoreFocus) toggle.focus();
+		};
+
+		const syncTheme = (activeStyle: string) => {
+			const activeRadio = radios.find((radio) => radio.value === activeStyle) ?? radios[0];
+			if (!activeRadio || !(toggle instanceof HTMLButtonElement)) return;
+			activeRadio.checked = true;
+			const activeLabel = activeRadio.dataset.label ?? activeRadio.value;
+			const swatch = activeRadio.closest('.theme-option')?.querySelector('.theme-swatch');
+			const swatchValue = swatch instanceof HTMLElement ? swatch.style.getPropertyValue('--swatch') : '';
+			if (swatchValue) toggle.style.setProperty('--active-swatch', swatchValue);
+			if (currentName) currentName.textContent = activeLabel;
+			toggle.setAttribute('aria-label', `选择视觉风格，当前：${activeLabel}`);
+		};
+
+		if (toggle instanceof HTMLButtonElement && options instanceof HTMLFieldSetElement) {
+			toggle.addEventListener('click', () => setOpen(!switcher.classList.contains('is-open')));
+
+			options.addEventListener('change', (event) => {
+				const radio = event.target;
+				if (!(radio instanceof HTMLInputElement) || !ids.includes(radio.value)) return;
+				applyStyle(radio.value);
+				syncTheme(radio.value);
+				try {
+					localStorage.setItem(storageKey, radio.value);
+				} catch {}
+
+				const url = new URL(window.location.href);
+				url.searchParams.set('style', radio.value);
+				window.history.replaceState({}, '', url);
+			});
+
+			document.addEventListener('click', (event) => {
+				if (!(event.target instanceof Node) || !switcher.contains(event.target)) setOpen(false);
+			});
+
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && switcher.classList.contains('is-open')) setOpen(false, true);
+			});
+
+			switcher.addEventListener('focusout', () => {
+				window.setTimeout(() => {
+					if (!switcher.contains(document.activeElement)) setOpen(false);
+				}, 0);
+			});
+
+			const candidate = document.documentElement.dataset.style;
+			const initial = candidate && ids.includes(candidate) ? candidate : defaultThemeId;
+			syncTheme(initial);
+			setOpen(false);
+		}
+	}
+</script>

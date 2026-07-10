@@ -2,15 +2,74 @@
 import { SITE_TITLE } from '../consts';
 import navigation from '../data/navigation.json';
 import HeaderLink from './HeaderLink.astro';
+import ThemeSwitcher from './ThemeSwitcher.astro';
 
 const navItems = navigation.filter((item) => item.enabled);
 ---
 
-<header>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<header data-site-header>
 	<nav aria-label="主导航">
 		<a class="site-name" href="/">{SITE_TITLE}</a>
-		<div class="internal-links">
+		<div class="internal-links" id="site-navigation">
 			{navItems.map((item) => <HeaderLink href={item.href}>{item.label}</HeaderLink>)}
+		</div>
+		<div class="header-tools">
+			<ThemeSwitcher />
+			<button
+				type="button"
+				class="nav-toggle"
+				aria-expanded="false"
+				aria-controls="site-navigation"
+				aria-label="展开主导航"
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M4 7h16M4 12h16M4 17h16" />
+				</svg>
+				<span>菜单</span>
+			</button>
 		</div>
 	</nav>
 </header>
+
+<script>
+	const header = document.querySelector('[data-site-header]');
+	const mobileNavigation = window.matchMedia('(max-width: 820px)');
+
+	if (header instanceof HTMLElement && header.dataset.navReady !== 'true') {
+		header.dataset.navReady = 'true';
+		const toggle = header.querySelector('.nav-toggle');
+		const links = header.querySelector('#site-navigation');
+
+		const setOpen = (open: boolean, focusFirst = false) => {
+			if (!(toggle instanceof HTMLButtonElement) || !(links instanceof HTMLElement)) return;
+			const expanded = mobileNavigation.matches && open;
+			header.classList.toggle('is-nav-open', expanded);
+			toggle.setAttribute('aria-expanded', String(expanded));
+			toggle.setAttribute('aria-label', expanded ? '收起主导航' : '展开主导航');
+			links.hidden = mobileNavigation.matches && !expanded;
+			links.inert = mobileNavigation.matches && !expanded;
+			if (expanded && focusFirst) links.querySelector('a')?.focus();
+		};
+
+		if (toggle instanceof HTMLButtonElement && links instanceof HTMLElement) {
+			toggle.addEventListener('click', () => setOpen(!header.classList.contains('is-nav-open'), true));
+			links.addEventListener('click', (event) => {
+				if (event.target instanceof Element && event.target.closest('a')) setOpen(false);
+			});
+			document.addEventListener('click', (event) => {
+				if (mobileNavigation.matches && (!(event.target instanceof Node) || !header.contains(event.target))) {
+					setOpen(false);
+				}
+			});
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && header.classList.contains('is-nav-open')) {
+					setOpen(false);
+					toggle.focus();
+				}
+			});
+			mobileNavigation.addEventListener('change', () => setOpen(false));
+			setOpen(false);
+		}
+	}
+</script>

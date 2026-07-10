@@ -15,11 +15,11 @@ const isXianxiaReference = (src: unknown) =>
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`文章 | ${SITE_TITLE}`} description="按时间查看 ztt 的博客文章。" />
+		<BaseHead title={`文章 | ${SITE_TITLE}`} description="按时间查看 ztt 的博客文章。" schemaType="collection" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Blog</p>
 			<h1>文章</h1>
 			<p class="page-lede">这里会逐步放学习笔记、项目记录、工具折腾和阶段总结。</p>
@@ -32,9 +32,11 @@ const isXianxiaReference = (src: unknown) =>
 								<Image
 									width={720}
 									height={isXianxiaReference(post.data.heroImage) ? 540 : 405}
+									widths={[360, 540, 720]}
+									sizes="(max-width: 820px) calc(100vw - 3rem), (max-width: 1040px) 50vw, 33vw"
 									src={post.data.heroImage}
 									position={isXianxiaReference(post.data.heroImage) ? 'top' : undefined}
-									alt={`${post.data.title} 封面`}
+									alt=""
 								/>
 							)}
 							<div>

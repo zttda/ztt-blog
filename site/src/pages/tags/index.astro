@@ -18,14 +18,14 @@ const tags = [...tagCounts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'z
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`标签 | ${SITE_TITLE}`} description="按主题查看博客文章。" />
+		<BaseHead title={`标签 | ${SITE_TITLE}`} description="按主题查看博客文章。" schemaType="collection" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Tags</p>
 			<h1>标签</h1>
-			<p class="page-lede">标签先按占位文章整理，后续写作时可以继续增删。</p>
+			<p class="page-lede">按主题浏览已经发布的文章。</p>
 
 			<div class="grid">
 				{

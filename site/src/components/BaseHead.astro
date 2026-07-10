@@ -2,21 +2,48 @@
 // Import the global.css file here so that it is included on
 // all pages through the use of the <BaseHead /> component.
 import '../styles/global.css';
+import { getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import FallbackImage from '../assets/blog-placeholder-1.jpg';
-import { SITE_TITLE } from '../consts';
+import { SITE_AUTHOR, SITE_TITLE, SITE_URL } from '../consts';
 import theme from '../data/theme.json';
+import { DARK_THEME_IDS, DEFAULT_THEME_ID, THEME_IDS, THEME_STORAGE_KEY } from '../data/themes';
 
 interface Props {
 	title: string;
 	description: string;
 	image?: ImageMetadata;
+	type?: 'website' | 'article';
+	schemaType?: 'website' | 'webpage' | 'collection' | 'profile' | 'article';
+	robots?: string;
+	pubDate?: Date;
+	updatedDate?: Date;
+	keywords?: string[];
+	preloadHero?: { desktop: string; mobile?: string };
 }
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
-const { title, description, image = FallbackImage } = Astro.props;
-const socialImageSrc = image.src.includes('blog-xs') ? '/uploads/theme/crayon-sticker-720.webp' : image.src;
+const {
+	title,
+	description,
+	image = FallbackImage,
+	type = 'website',
+	schemaType = type === 'article' ? 'article' : 'webpage',
+	robots,
+	pubDate,
+	updatedDate,
+	keywords = [],
+	preloadHero,
+} = Astro.props;
+const brandSuffix = ` | ${SITE_TITLE}`;
+const pageTitle = title === SITE_TITLE || title.endsWith(brandSuffix) ? title : `${title}${brandSuffix}`;
+const optimizedSocialImage = image.src.includes('blog-xs')
+	? null
+	: await getImage({ src: image, width: 1200, format: 'webp', quality: 80 });
+const socialImageSrc = image.src.includes('blog-xs')
+	? '/uploads/theme/crayon-sticker-720.webp'
+	: optimizedSocialImage?.src ?? image.src;
 const absoluteImageURL = new URL(socialImageSrc, Astro.site);
 const builtinFonts = {
 	default: {
@@ -35,7 +62,23 @@ const builtinFonts = {
 		stack: 'system-ui, "Microsoft YaHei", "PingFang SC", sans-serif',
 	},
 } as const;
-const customFonts = Array.isArray(theme.customFonts) ? theme.customFonts : [];
+type CustomFont = {
+	id: string;
+	family: string;
+	url: string;
+	format?: 'woff2' | 'woff' | 'truetype' | 'opentype';
+	weight?: string;
+};
+const customFonts = (Array.isArray(theme.customFonts) ? (theme.customFonts as CustomFont[]) : []).filter(
+	(font) =>
+		font?.id &&
+		typeof font.family === 'string' &&
+		/^[\p{L}\p{N} _-]{1,80}$/u.test(font.family) &&
+		typeof font.url === 'string' &&
+		/^\/fonts\/custom\/[A-Za-z0-9._/-]+$/.test(font.url) &&
+		(!font.format || ['woff2', 'woff', 'truetype', 'opentype'].includes(String(font.format))) &&
+		(!font.weight || /^(?:normal|bold|[1-9]00)$/.test(String(font.weight))),
+);
 const customFontCss = customFonts
 	.filter((font) => font?.family && font?.url)
 	.map(
@@ -62,6 +105,53 @@ const homeTextFontStack = fontStack(theme.homeTextFont, bodyFontStack);
 const postTitleFontStack = fontStack(theme.postTitleFont, headingFontStack);
 const postBodyFontStack = fontStack(theme.postBodyFont, bodyFontStack);
 const footerFontStack = fontStack(theme.footerFont, bodyFontStack);
+let structuredData: Record<string, unknown>;
+switch (schemaType) {
+	case 'article':
+		structuredData = {
+			'@context': 'https://schema.org',
+			'@type': 'BlogPosting',
+			headline: title,
+			description,
+			image: absoluteImageURL.href,
+			datePublished: pubDate?.toISOString(),
+			dateModified: (updatedDate ?? pubDate)?.toISOString(),
+			mainEntityOfPage: canonicalURL.href,
+			author: { '@type': 'Person', name: SITE_AUTHOR },
+			publisher: { '@type': 'Person', name: SITE_AUTHOR },
+			...(keywords.length > 0 ? { keywords } : {}),
+		};
+		break;
+	case 'website':
+		structuredData = {
+			'@context': 'https://schema.org',
+			'@type': 'WebSite',
+			name: SITE_TITLE,
+			description,
+			url: SITE_URL,
+		};
+		break;
+	case 'profile':
+		structuredData = {
+			'@context': 'https://schema.org',
+			'@type': 'ProfilePage',
+			name: title,
+			description,
+			url: canonicalURL.href,
+			mainEntity: { '@type': 'Person', name: SITE_AUTHOR },
+		};
+		break;
+	default:
+		structuredData = {
+			'@context': 'https://schema.org',
+			'@type': schemaType === 'collection' ? 'CollectionPage' : 'WebPage',
+			name: title,
+			description,
+			url: canonicalURL.href,
+			isPartOf: { '@type': 'WebSite', name: SITE_TITLE, url: SITE_URL },
+		};
+}
+const structuredDataJson = JSON.stringify(structuredData).replace(/</g, '\\u003c');
 const themeCss = `
 ${customFontCss}
 :root {
@@ -94,42 +184,18 @@ ${customFontCss}
 <link rel="preload" href="/fonts/atkinson-regular.woff" as="font" type="font/woff" crossorigin />
 <link rel="preload" href="/fonts/atkinson-bold.woff" as="font" type="font/woff" crossorigin />
 
-<script is:inline>
+<script
+	is:inline
+	define:vars={{
+		themeIds: THEME_IDS,
+		darkThemeIds: DARK_THEME_IDS,
+		defaultThemeId: DEFAULT_THEME_ID,
+		storageKey: THEME_STORAGE_KEY,
+		preloadHero: preloadHero ?? null,
+	}}
+>
 	(() => {
-		const storageKey = 'blog-style-v2';
-		const themes = [
-			{
-				id: 'crayon-party',
-				label: '蜡笔派对',
-				swatch: 'conic-gradient(from 140deg, #2f7fe6, #fff2d5, #f04f9a, #ffbe3e)',
-			},
-			{
-				id: 'paper',
-				label: '纸刊手记',
-				swatch: 'conic-gradient(from 140deg, #c4492d, #fff8e8, #0d7f78, #c4492d)',
-			},
-			{
-				id: 'noir',
-				label: '夜读小报',
-				swatch: 'conic-gradient(from 140deg, #f06d4f, #10100d, #4fc3c9, #ffb35c)',
-			},
-			{
-				id: 'ceramic',
-				label: '陶瓷档案',
-				swatch: 'conic-gradient(from 140deg, #1f6f8b, #fafffd, #b23a34, #1f6f8b)',
-			},
-			{
-				id: 'brutal',
-				label: '粗野印刷',
-				swatch: 'conic-gradient(from 140deg, #12110f, #fffdee, #ffd537, #d83324)',
-			},
-			{
-				id: 'terminal',
-				label: '绿色终端',
-				swatch: 'conic-gradient(from 140deg, #7dff9e, #040e0a, #ffdc5e, #ff6c4f)',
-			},
-		];
-		const ids = themes.map((theme) => theme.id);
+		document.documentElement.classList.add('js');
 		const params = new URLSearchParams(window.location.search);
 		const fromQuery = params.get('style');
 		const fromStorage = (() => {
@@ -139,148 +205,31 @@ ${customFontCss}
 				return null;
 			}
 		})();
-		const initial = ids.includes(fromQuery) ? fromQuery : ids.includes(fromStorage) ? fromStorage : 'crayon-party';
+		const initial = themeIds.includes(fromQuery)
+			? fromQuery
+			: themeIds.includes(fromStorage)
+				? fromStorage
+				: defaultThemeId;
 
-		const applyStyle = (id) => {
-			document.documentElement.dataset.style = id;
-			document.documentElement.style.colorScheme = ['noir', 'terminal'].includes(id) ? 'dark' : 'light';
-		};
+		document.documentElement.dataset.style = initial;
+		document.documentElement.style.colorScheme = darkThemeIds.includes(initial) ? 'dark' : 'light';
 
-		applyStyle(initial);
+		if (preloadHero?.desktop && initial === defaultThemeId) {
+			const preload = document.createElement('link');
+			preload.rel = 'preload';
+			preload.as = 'image';
+			preload.href = preloadHero.mobile && window.matchMedia('(max-width: 520px)').matches
+				? preloadHero.mobile
+				: preloadHero.desktop;
+			preload.fetchPriority = 'high';
+			document.head.append(preload);
+		}
 
-		if (ids.includes(fromQuery)) {
+		if (themeIds.includes(fromQuery)) {
 			try {
 				localStorage.setItem(storageKey, fromQuery);
 			} catch {}
 		}
-
-		window.addEventListener('DOMContentLoaded', () => {
-			const switcher = document.createElement('div');
-			switcher.className = 'theme-switcher';
-			switcher.setAttribute('aria-label', 'Choose visual style');
-
-			const toggle = document.createElement('button');
-			toggle.type = 'button';
-			toggle.className = 'theme-toggle';
-			toggle.title = 'Choose visual style';
-			toggle.setAttribute('aria-label', 'Choose visual style');
-			toggle.setAttribute('aria-expanded', 'false');
-			toggle.setAttribute('aria-controls', 'theme-options');
-
-			const options = document.createElement('div');
-			options.className = 'theme-options';
-			options.id = 'theme-options';
-			options.setAttribute('role', 'radiogroup');
-			options.setAttribute('aria-label', 'Visual style');
-			switcher.append(toggle, options);
-
-			for (const theme of themes) {
-				const button = document.createElement('button');
-				button.type = 'button';
-				button.className = 'theme-swatch';
-				button.dataset.style = theme.id;
-				button.title = theme.label;
-				button.setAttribute('aria-label', theme.label);
-				button.setAttribute('role', 'radio');
-				button.style.setProperty('--swatch', theme.swatch);
-				options.append(button);
-			}
-
-			const setOpen = (open) => {
-				switcher.classList.toggle('is-open', open);
-				toggle.setAttribute('aria-expanded', String(open));
-				options.hidden = !open;
-				options.inert = !open;
-				options.setAttribute('aria-hidden', String(!open));
-				for (const button of options.querySelectorAll('button[data-style]')) {
-					button.tabIndex = open ? 0 : -1;
-				}
-			};
-
-			const syncButtons = (activeStyle) => {
-				for (const button of switcher.querySelectorAll('button[data-style]')) {
-					button.setAttribute('aria-checked', String(button.dataset.style === activeStyle));
-				}
-				const activeTheme = themes.find((theme) => theme.id === activeStyle);
-				if (activeTheme) {
-					toggle.style.setProperty('--active-swatch', activeTheme.swatch);
-					toggle.setAttribute('aria-label', `Choose visual style, current: ${activeTheme.label}`);
-					toggle.title = `Choose visual style: ${activeTheme.label}`;
-				}
-			};
-
-			const selectStyle = (button) => {
-				const nextStyle = button?.dataset?.style;
-				if (!ids.includes(nextStyle)) return;
-
-				applyStyle(nextStyle);
-				syncButtons(nextStyle);
-				try {
-					localStorage.setItem(storageKey, nextStyle);
-				} catch {}
-
-				const url = new URL(window.location.href);
-				url.searchParams.set('style', nextStyle);
-				window.history.replaceState({}, '', url);
-			};
-
-			switcher.addEventListener('click', (event) => {
-				if (event.target.closest('.theme-toggle')) {
-					setOpen(!switcher.classList.contains('is-open'));
-					return;
-				}
-
-				const button = event.target.closest('button[data-style]');
-				if (!button) return;
-				selectStyle(button);
-				setOpen(false);
-				toggle.focus();
-			});
-
-			document.addEventListener('click', (event) => {
-				if (!switcher.contains(event.target)) setOpen(false);
-			});
-
-			document.addEventListener('keydown', (event) => {
-				if (event.key === 'Escape' && switcher.classList.contains('is-open')) {
-					setOpen(false);
-					toggle.focus();
-				}
-			});
-
-			options.addEventListener('keydown', (event) => {
-				const buttons = [...options.querySelectorAll('button[data-style]')];
-				const currentIndex = buttons.indexOf(document.activeElement);
-				const moveKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
-				if (!moveKeys.includes(event.key) && !['Enter', ' '].includes(event.key)) return;
-
-				event.preventDefault();
-				if (event.key === 'Enter' || event.key === ' ') {
-					selectStyle(document.activeElement);
-					setOpen(false);
-					toggle.focus();
-					return;
-				}
-
-				const lastIndex = buttons.length - 1;
-				let nextIndex = currentIndex < 0 ? 0 : currentIndex;
-				if (event.key === 'Home') nextIndex = 0;
-				if (event.key === 'End') nextIndex = lastIndex;
-				if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = currentIndex >= lastIndex ? 0 : currentIndex + 1;
-				if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = currentIndex <= 0 ? lastIndex : currentIndex - 1;
-				buttons[nextIndex]?.focus();
-			});
-
-			switcher.addEventListener('focusout', () => {
-				window.setTimeout(() => {
-					if (!switcher.contains(document.activeElement)) setOpen(false);
-				}, 0);
-			});
-
-			syncButtons(initial);
-			setOpen(false);
-			document.body.append(switcher);
-		});
 	})();
 </script>
 
@@ -290,20 +239,31 @@ ${customFontCss}
 <link rel="canonical" href={canonicalURL} />
 
 <!-- Primary Meta Tags -->
-<title>{title}</title>
-<meta name="title" content={title} />
+<title>{pageTitle}</title>
+<meta name="title" content={pageTitle} />
 <meta name="description" content={description} />
+{robots && <meta name="robots" content={robots} />}
+<meta name="author" content={SITE_AUTHOR} />
+{keywords.length > 0 && <meta name="keywords" content={keywords.join(', ')} />}
 
 <!-- Open Graph / Facebook -->
-<meta property="og:type" content="website" />
+<meta property="og:type" content={type} />
+<meta property="og:locale" content="zh_CN" />
+<meta property="og:site_name" content={SITE_TITLE} />
 <meta property="og:url" content={canonicalURL} />
-<meta property="og:title" content={title} />
+<meta property="og:title" content={pageTitle} />
 <meta property="og:description" content={description} />
 <meta property="og:image" content={absoluteImageURL} />
+<meta property="og:image:alt" content={`${title} 分享图片`} />
+{type === 'article' && pubDate && <meta property="article:published_time" content={pubDate.toISOString()} />}
+{type === 'article' && updatedDate && <meta property="article:modified_time" content={updatedDate.toISOString()} />}
 
 <!-- Twitter -->
 <meta property="twitter:card" content="summary_large_image" />
 <meta property="twitter:url" content={canonicalURL} />
-<meta property="twitter:title" content={title} />
+<meta property="twitter:title" content={pageTitle} />
 <meta property="twitter:description" content={description} />
 <meta property="twitter:image" content={absoluteImageURL} />
+<meta property="twitter:image:alt" content={`${title} 分享图片`} />
+
+<script is:inline type="application/ld+json" set:html={structuredDataJson} />

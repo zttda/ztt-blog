@@ -30,11 +30,11 @@ const isXianxiaReference = (src: unknown) =>
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`${tag} | ${SITE_TITLE}`} description={`标签 ${tag} 下的文章。`} />
+		<BaseHead title={`${tag} | ${SITE_TITLE}`} description={`标签 ${tag} 下的文章。`} schemaType="collection" />
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<p class="eyebrow">Tag</p>
 			<h1>{tag}</h1>
 			<p class="page-lede">这个标签下共有 {posts.length} 篇文章。</p>
@@ -47,9 +47,11 @@ const isXianxiaReference = (src: unknown) =>
 								<Image
 									width={720}
 									height={isXianxiaReference(post.data.heroImage) ? 540 : 405}
+									widths={[360, 540, 720]}
+									sizes="(max-width: 820px) calc(100vw - 3rem), (max-width: 1040px) 50vw, 33vw"
 									src={post.data.heroImage}
 									position={isXianxiaReference(post.data.heroImage) ? 'top' : undefined}
-									alt={`${post.data.title} 封面`}
+									alt=""
 								/>
 							)}
 							<div>

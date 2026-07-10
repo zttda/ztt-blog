@@ -12,6 +12,7 @@ import { getPublishedPosts } from '../utils/posts';
 const posts = await getPublishedPosts();
 const latestPosts = posts.slice(0, 3);
 const allTags = [...new Set(posts.flatMap((post) => post.data.tags))].slice(0, 8);
+const latestPostHref = latestPosts[0] ? `/blog/${latestPosts[0].id}/` : home.primaryHref;
 const isXianxiaReference = (src: unknown) =>
 	typeof src === 'object' && src !== null && 'src' in src && String(src.src).includes('ai-xianxia-reference');
 const opacity = (value: unknown, fallback: number) => {
@@ -19,8 +20,7 @@ const opacity = (value: unknown, fallback: number) => {
 	if (Number.isNaN(parsed)) return fallback;
 	return Math.min(1, Math.max(0, parsed));
 };
-const heroBackground =
-	home.heroBackground === '/uploads/home/2.png' ? '/uploads/theme/crayon-scene-1280.webp' : home.heroBackground;
+const heroBackground = home.heroBackground;
 const homeStyle = [
 	heroBackground ? `--hero-bg: url('${heroBackground}')` : '',
 	`--hero-overlay-start: ${opacity(home.heroOverlayStart, 0.72)}`,
@@ -37,19 +37,27 @@ const customSections = home.sections?.filter((section) => section.enabled) ?? []
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} image={HeroImage} />
+		<BaseHead
+			title={SITE_TITLE}
+			description={SITE_DESCRIPTION}
+			image={HeroImage}
+			schemaType="website"
+			preloadHero={heroBackground
+				? { desktop: heroBackground, mobile: '/uploads/theme/crayon-scene-mobile-720.webp' }
+				: undefined}
+		/>
 	</head>
 	<body>
 		<Header />
-		<main>
+		<main id="main-content">
 			<section class:list={['hero', 'mobile-diary-hero', { 'has-bg': heroBackground }]} style={homeStyle}>
 				<div class="hero-mobile-sticker" aria-hidden="true"></div>
 				<div class="hero-copy">
 					<p class="hero-kicker">{home.kicker}</p>
-					<h1>{home.title}</h1>
+					<h1>{SITE_TITLE}</h1>
 					<p>{home.description}</p>
 					<div class="actions">
-						<a class="button" href={home.primaryHref}>{home.primaryLabel}</a>
+						<a class="button" href={latestPostHref}>{home.primaryLabel}</a>
 						<a class="button secondary" href={home.secondaryHref}>{home.secondaryLabel}</a>
 					</div>
 				</div>
@@ -78,9 +86,11 @@ const customSections = home.sections?.filter((section) => section.enabled) ?? []
 										<Image
 											width={720}
 											height={isXianxiaReference(post.data.heroImage) ? 540 : 405}
+											widths={[360, 540, 720]}
+											sizes="(max-width: 820px) calc(100vw - 3rem), (max-width: 1040px) 50vw, 33vw"
 											src={post.data.heroImage}
 											position={isXianxiaReference(post.data.heroImage) ? 'top' : undefined}
-											alt={`${post.data.title} 封面`}
+											alt=""
 										/>
 									)}
 									<div>
