@@ -10,6 +10,11 @@
     "enabled": true
   },
   {
+    "label": "标签",
+    "href": "/tags",
+    "enabled": true
+  },
+  {
     "label": "友链",
     "href": "/links",
     "enabled": true
