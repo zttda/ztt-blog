@@ -1231,10 +1231,8 @@ html[data-style="crayon-party"] img {
 
 html[data-style="crayon-party"] .hero::before {
 	background:
-		radial-gradient(circle at 12% 18%, rgba(var(--accent-rgb), 0.18), transparent 18rem),
 		radial-gradient(circle at 86% 14%, var(--accent-wash), transparent 20rem),
-		repeating-linear-gradient(8deg, rgba(var(--accent-rgb), 0.08) 0 2px, transparent 2px 18px);
-	mix-blend-mode: multiply;
+		repeating-linear-gradient(8deg, rgba(240, 79, 154, 0.055) 0 2px, transparent 2px 18px);
 }
 
 html[data-style="crayon-party"] .button,
