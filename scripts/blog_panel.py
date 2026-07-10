@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import html
 import argparse
+from collections import deque
+import html
 import json
 import mimetypes
 import os
 import re
 import secrets
+import signal
 import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -32,12 +36,18 @@ FRIENDS_FILE = SITE_DIR / "src" / "data" / "friends.json"
 ASSETS_DIR = SITE_DIR / "src" / "assets"
 PREVIEW_HOST = "127.0.0.1"
 PREVIEW_PORT = 4321
+PREVIEW_PORT_ATTEMPTS = 20
+PREVIEW_START_TIMEOUT_SECONDS = 15.0
 PANEL_HOST = "127.0.0.1"
 PANEL_PORT = 8765
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
 CSRF_TOKEN = secrets.token_urlsafe(32)
 
 preview_process: subprocess.Popen[str] | None = None
+active_preview_port = PREVIEW_PORT
+preview_output: deque[str] = deque(maxlen=120)
+preview_output_thread: threading.Thread | None = None
+preview_output_lock = threading.Lock()
 preview_lock = threading.Lock()
 
 
@@ -932,6 +942,195 @@ def is_port_open(host: str, port: int) -> bool:
         return sock.connect_ex((host, port)) == 0
 
 
+def get_preview_url(port: int | None = None) -> str:
+    selected_port = active_preview_port if port is None else port
+    return f"http://{PREVIEW_HOST}:{selected_port}/"
+
+
+def is_preview_ready(host: str, port: int, timeout: float = 0.8) -> bool:
+    request = urllib.request.Request(
+        f"http://{host}:{port}/",
+        headers={"Accept": "text/html", "User-Agent": "ztt-blog-panel"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return 200 <= response.status < 400
+    except (OSError, TimeoutError, urllib.error.URLError):
+        return False
+
+
+def is_panel_ready(port: int, timeout: float = 0.8) -> bool:
+    request = urllib.request.Request(
+        f"http://{PANEL_HOST}:{port}/",
+        headers={"Accept": "text/html", "User-Agent": "ztt-blog-panel"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            content = response.read(128 * 1024)
+            return response.status == 200 and "博客控制面板".encode("utf-8") in content
+    except (OSError, TimeoutError, urllib.error.URLError):
+        return False
+
+
+def get_preview_state() -> tuple[str, bool]:
+    process = preview_process
+    port = active_preview_port
+    url = get_preview_url(port)
+    ready = bool(
+        process
+        and process.poll() is None
+        and is_preview_ready(PREVIEW_HOST, port)
+    )
+    return url, ready
+
+
+def is_owned_preview_ready() -> bool:
+    return get_preview_state()[1]
+
+
+def find_available_preview_port(
+    host: str = PREVIEW_HOST,
+    start_port: int = PREVIEW_PORT,
+    attempts: int = PREVIEW_PORT_ATTEMPTS,
+) -> int | None:
+    for port in range(start_port, start_port + attempts):
+        if not is_port_open(host, port):
+            return port
+    return None
+
+
+def wait_for_port_closed(host: str, port: int, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not is_port_open(host, port):
+            return True
+        time.sleep(0.1)
+    return not is_port_open(host, port)
+
+
+def collect_preview_output(process: subprocess.Popen[str]) -> None:
+    if process.stdout is None:
+        return
+    try:
+        for line in process.stdout:
+            cleaned = line.rstrip()
+            if cleaned:
+                with preview_output_lock:
+                    preview_output.append(cleaned)
+    except (OSError, ValueError):
+        pass
+
+
+def launch_preview_process(npm: str, port: int) -> subprocess.Popen[str]:
+    global preview_output_thread
+    env = os.environ.copy()
+    env["ASTRO_TELEMETRY_DISABLED"] = "1"
+    if preview_output_thread and preview_output_thread.is_alive():
+        preview_output_thread.join(timeout=1)
+    with preview_output_lock:
+        preview_output.clear()
+    popen_options: dict[str, Any] = {
+        "cwd": str(SITE_DIR),
+        "text": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "bufsize": 1,
+        "env": env,
+    }
+    if os.name == "nt":
+        popen_options["creationflags"] = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        )
+    else:
+        popen_options["start_new_session"] = True
+
+    process = subprocess.Popen(
+        [
+            npm,
+            "run",
+            "dev",
+            "--",
+            "--host",
+            PREVIEW_HOST,
+            "--port",
+            str(port),
+        ],
+        **popen_options,
+    )
+    preview_output_thread = threading.Thread(
+        target=collect_preview_output,
+        args=(process,),
+        name="blog-preview-output",
+        daemon=True,
+    )
+    preview_output_thread.start()
+    return process
+
+
+def terminate_preview_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result and result.returncode == 0:
+            try:
+                process.wait(timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            return
+    else:
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            process.wait(timeout=5)
+            return
+        except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
+            pass
+
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+def preview_output_tail() -> str:
+    if preview_output_thread:
+        preview_output_thread.join(timeout=0.2)
+    with preview_output_lock:
+        return "\n".join(preview_output)[-4000:]
+
+
+def preview_port_from_output() -> int | None:
+    with preview_output_lock:
+        lines = list(preview_output)
+    for line in reversed(lines):
+        if "Local" not in line:
+            continue
+        match = re.search(r"https?://(?:127\.0\.0\.1|localhost):(\d{1,5})(?:/|\s|$)", line)
+        if match:
+            port = int(match.group(1))
+            if 1 <= port <= 65535:
+                return port
+    return None
+
+
 def get_git_status() -> str:
     result = run_command(["git", "status", "--short"], timeout=20)
     if result.code != 0:
@@ -1360,43 +1559,81 @@ def delete_friend(form: dict[str, str]) -> CommandResult:
 
 
 def start_preview() -> CommandResult:
-    global preview_process
+    global active_preview_port, preview_process
     with preview_lock:
-        if not shutil.which(npm_command()):
+        npm = shutil.which(npm_command())
+        if not npm:
             return CommandResult(1, "没有找到 npm。请先安装 Node.js 22.12 或更新版本。")
         if not node_modules_ready():
             return CommandResult(1, "还没有安装依赖。请先点击“安装/更新依赖”。")
         if preview_process and preview_process.poll() is None:
-            return CommandResult(0, f"预览服务已在 http://{PREVIEW_HOST}:{PREVIEW_PORT}/ 运行。")
-        if is_port_open(PREVIEW_HOST, PREVIEW_PORT):
-            return CommandResult(0, f"端口 {PREVIEW_PORT} 已有服务运行。")
-        npm = npm_command()
-        env = os.environ.copy()
-        env["ASTRO_TELEMETRY_DISABLED"] = "1"
-        preview_process = subprocess.Popen(
-            [npm, "run", "dev", "--", "--host", PREVIEW_HOST, "--port", str(PREVIEW_PORT)],
-            cwd=str(SITE_DIR),
-            text=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
-    return CommandResult(0, f"已启动预览：http://{PREVIEW_HOST}:{PREVIEW_PORT}/")
+            if is_preview_ready(PREVIEW_HOST, active_preview_port):
+                return CommandResult(0, f"预览服务已在 {get_preview_url()} 运行。")
+            terminate_preview_process(preview_process)
+        preview_process = None
+
+        selected_port = find_available_preview_port()
+        if selected_port is None:
+            end_port = PREVIEW_PORT + PREVIEW_PORT_ATTEMPTS - 1
+            return CommandResult(
+                1,
+                f"端口 {PREVIEW_PORT}-{end_port} 都被占用，无法启动预览。请关闭其他本地开发服务后重试。",
+            )
+        active_preview_port = selected_port
+
+        try:
+            preview_process = launch_preview_process(npm, selected_port)
+        except OSError as exc:
+            preview_process = None
+            active_preview_port = PREVIEW_PORT
+            return CommandResult(1, f"预览进程启动失败：{exc}")
+
+        deadline = time.monotonic() + PREVIEW_START_TIMEOUT_SECONDS
+        exit_code: int | None = None
+        while time.monotonic() < deadline:
+            exit_code = preview_process.poll()
+            if exit_code is not None:
+                break
+            detected_port = preview_port_from_output()
+            if detected_port is not None:
+                active_preview_port = detected_port
+            if detected_port is not None and is_preview_ready(PREVIEW_HOST, detected_port):
+                fallback_note = (
+                    ""
+                    if detected_port == PREVIEW_PORT
+                    else f"\n\n端口 {PREVIEW_PORT} 已被占用，已自动改用 {detected_port}。"
+                )
+                return CommandResult(0, f"已启动预览：{get_preview_url()}{fallback_note}")
+            time.sleep(0.2)
+
+        if exit_code is None and preview_process:
+            terminate_preview_process(preview_process)
+        details = preview_output_tail()
+        preview_process = None
+        active_preview_port = PREVIEW_PORT
+        if exit_code is not None:
+            summary = f"预览进程提前退出（退出码 {exit_code}）。"
+        else:
+            summary = f"等待 {PREVIEW_START_TIMEOUT_SECONDS:g} 秒后预览仍未就绪。"
+        if details:
+            summary += "\n\n最近日志：\n" + details
+        return CommandResult(1, summary)
 
 
 def stop_preview() -> CommandResult:
-    global preview_process
+    global active_preview_port, preview_process
     with preview_lock:
-        if preview_process and preview_process.poll() is None:
-            preview_process.terminate()
-            try:
-                preview_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                preview_process.kill()
+        if preview_process:
+            port = active_preview_port
+            terminate_preview_process(preview_process)
             preview_process = None
-            return CommandResult(0, "已停止预览服务。")
+            active_preview_port = PREVIEW_PORT
+            if not wait_for_port_closed(PREVIEW_HOST, port):
+                return CommandResult(
+                    1,
+                    f"已尝试停止预览，但端口 {port} 仍被占用。请关闭控制面板后重新打开。",
+                )
+            return CommandResult(0, f"已停止端口 {port} 的预览服务。")
     return CommandResult(0, "当前没有由面板启动的预览服务。")
 
 
@@ -1650,6 +1887,7 @@ def render_editor_page(
     status_html = ""
     if message:
         status_html = html_escape(message.output or "完成。")
+    preview_base = get_preview_url().rstrip("/")
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1708,7 +1946,7 @@ def render_editor_page(
       </div>
       <div class="actions">
         <a class="button secondary" href="/">返回面板</a>
-        <a class="button" href="http://{PREVIEW_HOST}:{PREVIEW_PORT}/" target="_blank">打开预览</a>
+        <a class="button" href="{preview_base}/" target="_blank">打开预览</a>
       </div>
     </div>
   </header>
@@ -1740,7 +1978,7 @@ def render_editor_page(
     const suffix = {json.dumps(suffix, ensure_ascii=False)};
     const kind = {json.dumps(kind, ensure_ascii=False)};
     const siteRoute = {json.dumps(site_route, ensure_ascii=False)};
-    const previewBase = {json.dumps(f"http://{PREVIEW_HOST}:{PREVIEW_PORT}", ensure_ascii=False)};
+    const previewBase = {json.dumps(preview_base, ensure_ascii=False)};
     const isNewPost = {json.dumps(is_new_post)};
     const csrfToken = {json.dumps(CSRF_TOKEN)};
     const editor = document.getElementById('source-editor');
@@ -2090,7 +2328,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
     editable_files = list_editable_files()
     home_section = home["sections"][0] if home.get("sections") else {}
     git_status = get_git_status()
-    preview_running = is_port_open(PREVIEW_HOST, PREVIEW_PORT)
+    preview_url, preview_running = get_preview_state()
     deps_ready = node_modules_ready()
     site_url = get_site_url()
     drafts = [post for post in posts if post["draft"]]
@@ -2277,7 +2515,6 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
     draft_metric_class = "is-warn" if drafts else "is-ok"
     preview_metric_class = "is-ok" if preview_running else "is-warn"
     deps_metric_class = "is-ok" if deps_ready else "is-warn"
-    preview_url = f"http://{PREVIEW_HOST}:{PREVIEW_PORT}/"
     embedded_preview_html = (
         f'<iframe src="{preview_url}" title="网站实时预览"></iframe>'
         if preview_running
@@ -2327,7 +2564,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         <p class="muted">本地工具，只操作 D:\\Blog 里的静态博客文件。</p>
       </div>
       <div class="actions">
-        <a class="button" href="http://{PREVIEW_HOST}:{PREVIEW_PORT}/" target="_blank">打开预览</a>
+        <a class="button" href="{preview_url}" target="_blank">打开预览</a>
         <a class="button secondary" href="/" aria-current="page">刷新面板</a>
       </div>
     </div>
@@ -2339,7 +2576,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <h2>预览、构建和发布</h2>
           <p class="muted">最常用的启动预览、构建检查、推送上线都放在这里，打开控制面板就能直接操作。</p>
         </div>
-        <a class="button ghost" href="http://{PREVIEW_HOST}:{PREVIEW_PORT}/" target="_blank">打开网站预览</a>
+        <a class="button ghost" href="{preview_url}" target="_blank">打开网站预览</a>
       </div>
       <div class="actions">
         <form method="post" action="/action/check_requirements"><button class="ghost" type="submit">检查环境</button></form>
@@ -2731,6 +2968,15 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
 </html>"""
 
 
+class BlogPanelServer(ThreadingHTTPServer):
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self) -> None:
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 class BlogPanelHandler(BaseHTTPRequestHandler):
     def trusted_request(self) -> bool:
         host = self.headers.get("Host", "")
@@ -2947,6 +3193,40 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {format % args}")
 
 
+def serve_panel(port: int, no_browser: bool = False) -> int:
+    url = f"http://{PANEL_HOST}:{port}/"
+    try:
+        server = BlogPanelServer((PANEL_HOST, port), BlogPanelHandler)
+    except OSError as exc:
+        if is_panel_ready(port):
+            print(f"控制面板已经在运行：{url}")
+            if not no_browser:
+                try:
+                    webbrowser.open(url)
+                except Exception:
+                    pass
+            return 0
+        print(f"无法启动控制面板：端口 {port} 已被占用。", file=sys.stderr)
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(f"Blog panel is running: {url}")
+    print("Press Ctrl+C to stop.")
+    if not no_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping panel...")
+    finally:
+        stop_preview()
+        server.server_close()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the local blog control panel.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the browser automatically.")
@@ -2973,24 +3253,7 @@ def main() -> int:
     if not THEME_FILE.exists():
         write_theme(DEFAULT_THEME)
     initialize_post_templates()
-
-    server = ThreadingHTTPServer((PANEL_HOST, args.port), BlogPanelHandler)
-    url = f"http://{PANEL_HOST}:{args.port}/"
-    print(f"Blog panel is running: {url}")
-    print("Press Ctrl+C to stop.")
-    if not args.no_browser:
-        try:
-            webbrowser.open(url)
-        except Exception:
-            pass
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopping panel...")
-    finally:
-        stop_preview()
-        server.server_close()
-    return 0
+    return serve_panel(args.port, args.no_browser)
 
 
 if __name__ == "__main__":
