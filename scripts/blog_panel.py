@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import shutil
 import socket
 import subprocess
@@ -33,9 +34,40 @@ PREVIEW_HOST = "127.0.0.1"
 PREVIEW_PORT = 4321
 PANEL_HOST = "127.0.0.1"
 PANEL_PORT = 8765
+MAX_REQUEST_BYTES = 32 * 1024 * 1024
+CSRF_TOKEN = secrets.token_urlsafe(32)
 
 preview_process: subprocess.Popen[str] | None = None
 preview_lock = threading.Lock()
+
+
+def is_trusted_host(host_header: str, port: int) -> bool:
+    try:
+        parsed = urlparse(f"http://{host_header}")
+        return parsed.hostname in {PANEL_HOST, "localhost"} and parsed.port == port
+    except ValueError:
+        return False
+
+
+def is_trusted_origin(origin: str, host_header: str) -> bool:
+    if not origin:
+        return True
+    try:
+        parsed_origin = urlparse(origin)
+        parsed_host = urlparse(f"http://{host_header}")
+        return (
+            parsed_origin.scheme == "http"
+            and parsed_origin.hostname == parsed_host.hostname
+            and parsed_origin.port == parsed_host.port
+        )
+    except ValueError:
+        return False
+
+
+def inject_csrf_fields(content: str) -> str:
+    field = f'<input type="hidden" name="_csrf" value="{CSRF_TOKEN}">'
+    post_form = re.compile(r'(<form\b(?=[^>]*\bmethod=["\']post["\'])[^>]*>)', re.IGNORECASE)
+    return post_form.sub(lambda match: match.group(1) + field, content)
 
 
 @dataclass
@@ -52,8 +84,11 @@ class UploadedFile:
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".svg"}
+UPLOAD_IMAGE_EXTENSIONS = IMAGE_EXTENSIONS - {".svg"}
 COVER_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
 FONT_EXTENSIONS = {".woff2", ".woff", ".ttf", ".otf"}
+MAX_UPLOAD_BYTES = 12 * 1024 * 1024
+MAX_UPLOAD_FILES = 12
 POST_EXTENSIONS = {".md", ".mdx"}
 EDITABLE_EXTENSIONS = {
     ".astro",
@@ -73,7 +108,17 @@ EDITABLE_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
-EDIT_EXCLUDED_PARTS = {".git", ".astro", ".wrangler", "__pycache__", "dist", "node_modules"}
+EDIT_EXCLUDED_PARTS = {
+    ".git",
+    ".astro",
+    ".wrangler",
+    ".tmp-edge-screens",
+    "__pycache__",
+    "design-previews",
+    "dist",
+    "image-candidates",
+    "node_modules",
+}
 EDIT_EXCLUDED_NAMES = {"github_token.txt"}
 HOME_FILE = SITE_DIR / "src" / "data" / "home.json"
 NAVIGATION_FILE = SITE_DIR / "src" / "data" / "navigation.json"
@@ -230,6 +275,37 @@ def yaml_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def set_draft_frontmatter(text: str, draft: bool) -> str:
+    value = "true" if draft else "false"
+    if text.startswith("---\r\n"):
+        newline = "\r\n"
+        frontmatter_start = 5
+    elif text.startswith("---\n"):
+        newline = "\n"
+        frontmatter_start = 4
+    else:
+        return f"---\ndraft: {value}\n---\n\n{text}"
+
+    closing = re.search(r"(?m)^---[ \t]*\r?$", text[frontmatter_start:])
+    if not closing:
+        return text
+    closing_start = frontmatter_start + closing.start()
+    frontmatter = text[frontmatter_start:closing_start]
+    pattern = re.compile(
+        r"^(draft[ \t]*:[ \t]*)(?:true|false)([ \t]*(?:#.*)?)(\r?)$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    if pattern.search(frontmatter):
+        updated = pattern.sub(
+            lambda match: f"{match.group(1)}{value}{match.group(2)}{match.group(3)}",
+            frontmatter,
+            count=1,
+        )
+    else:
+        updated = f"draft: {value}{newline}{frontmatter}"
+    return text[:frontmatter_start] + updated + text[closing_start:]
+
+
 def parse_checkbox(value: str) -> bool:
     return value == "on"
 
@@ -276,8 +352,10 @@ def save_public_image(upload: UploadedFile | None, folder: str, fallback: str = 
     if not upload or not upload.filename or not upload.data:
         return None
     filename = safe_filename(upload.filename, fallback)
-    if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
-        raise ValueError("图片只支持 jpg、jpeg、png、webp、avif、gif、svg。")
+    if Path(filename).suffix.lower() not in UPLOAD_IMAGE_EXTENSIONS:
+        raise ValueError("图片只支持 jpg、jpeg、png、webp、avif、gif；为安全起见不接收 SVG 上传。")
+    if len(upload.data) > MAX_UPLOAD_BYTES:
+        raise ValueError("单个图片不能超过 12 MiB。")
     target_dir = PUBLIC_UPLOADS_DIR / folder
     target = unique_path(target_dir, filename)
     target.write_bytes(upload.data)
@@ -290,6 +368,8 @@ def save_asset_image(upload: UploadedFile | None, folder: str, fallback: str = "
     filename = safe_filename(upload.filename, fallback)
     if Path(filename).suffix.lower() not in COVER_IMAGE_EXTENSIONS:
         raise ValueError("封面图只支持 jpg、jpeg、png、webp、avif。")
+    if len(upload.data) > MAX_UPLOAD_BYTES:
+        raise ValueError("单个封面图不能超过 12 MiB。")
     target_dir = ASSETS_DIR / folder
     target = unique_path(target_dir, filename)
     target.write_bytes(upload.data)
@@ -303,6 +383,8 @@ def save_font_file(upload: UploadedFile | None, fallback: str = "font") -> tuple
     ext = Path(filename).suffix.lower()
     if ext not in FONT_EXTENSIONS:
         raise ValueError("字体只支持 woff2、woff、ttf、otf。")
+    if len(upload.data) > MAX_UPLOAD_BYTES:
+        raise ValueError("单个字体文件不能超过 12 MiB。")
     target_dir = PUBLIC_FONTS_DIR / "custom"
     target = unique_path(target_dir, filename)
     target.write_bytes(upload.data)
@@ -431,7 +513,7 @@ def safe_root_file(rel_file: str, *, must_exist: bool = True) -> Path | None:
         relative = path.relative_to(ROOT.resolve())
     except ValueError:
         return None
-    if any(part in EDIT_EXCLUDED_PARTS for part in relative.parts):
+    if any(part in EDIT_EXCLUDED_PARTS or part.startswith(".tmp-") for part in relative.parts):
         return None
     if path.name in EDIT_EXCLUDED_NAMES:
         return None
@@ -445,7 +527,9 @@ def safe_root_file(rel_file: str, *, must_exist: bool = True) -> Path | None:
 def list_editable_files() -> list[dict[str, str]]:
     files: list[dict[str, str]] = []
     for current, dirs, names in os.walk(ROOT):
-        dirs[:] = [name for name in dirs if name not in EDIT_EXCLUDED_PARTS]
+        dirs[:] = [
+            name for name in dirs if name not in EDIT_EXCLUDED_PARTS and not name.startswith(".tmp-")
+        ]
         current_path = Path(current)
         for name in names:
             path = current_path / name
@@ -505,39 +589,74 @@ def route_for_page_file(path: Path) -> str | None:
     return route.rstrip("/") + "/" if route != "/" else "/"
 
 
-def parse_frontmatter(path: Path) -> dict[str, Any]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        text = path.read_text(encoding="utf-8", errors="replace")
-
-    if not text.startswith("---"):
-        return {}
-
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-
-    data: dict[str, Any] = {}
-    for raw_line in text[3:end].splitlines():
-        line = raw_line.strip()
-        if not line or ":" not in line:
-            continue
-        key, raw_value = line.split(":", 1)
-        value = raw_value.strip().strip("\"'")
-        if value.lower() == "true":
-            data[key.strip()] = True
-        elif value.lower() == "false":
-            data[key.strip()] = False
-        elif value.startswith("[") and value.endswith("]"):
-            data[key.strip()] = [
-                item.strip().strip("\"'")
-                for item in value[1:-1].split(",")
-                if item.strip()
-            ]
+def split_yaml_flow_items(value: str) -> list[str]:
+    items: list[str] = []
+    current: list[str] = []
+    quote_char = ""
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if quote_char:
+            current.append(char)
+            if char == quote_char:
+                if index + 1 < len(value) and value[index + 1] == quote_char:
+                    current.append(value[index + 1])
+                    index += 1
+                else:
+                    quote_char = ""
+            elif char == "\\" and quote_char == '"' and index + 1 < len(value):
+                current.append(value[index + 1])
+                index += 1
+        elif char in {'"', "'"}:
+            quote_char = char
+            current.append(char)
+        elif char == ",":
+            items.append("".join(current).strip())
+            current = []
         else:
-            data[key.strip()] = value
-    return data
+            current.append(char)
+        index += 1
+    items.append("".join(current).strip())
+    return [item for item in items if item]
+
+
+def strip_yaml_inline_comment(value: str) -> str:
+    quote_char = ""
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if quote_char:
+            if char == quote_char:
+                if index + 1 < len(value) and value[index + 1] == quote_char:
+                    index += 1
+                else:
+                    quote_char = ""
+            elif char == "\\" and quote_char == '"':
+                index += 1
+        elif char in {'"', "'"}:
+            quote_char = char
+        elif char == "#" and (index == 0 or value[index - 1].isspace()):
+            return value[:index].rstrip()
+        index += 1
+    return value
+
+
+def parse_yaml_scalar(raw_value: str) -> Any:
+    value = strip_yaml_inline_comment(raw_value.strip())
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    if value.startswith("[") and value.endswith("]"):
+        return [parse_yaml_scalar(item) for item in split_yaml_flow_items(value[1:-1])]
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value[1:-1]
+    return value
 
 
 def parse_frontmatter_text(text: str) -> dict[str, Any]:
@@ -552,20 +671,54 @@ def parse_frontmatter_text(text: str) -> dict[str, Any]:
         if not line or ":" not in line:
             continue
         key, raw_value = line.split(":", 1)
-        value = raw_value.strip().strip("\"'")
-        if value.lower() == "true":
-            data[key.strip()] = True
-        elif value.lower() == "false":
-            data[key.strip()] = False
-        elif value.startswith("[") and value.endswith("]"):
-            data[key.strip()] = [
-                item.strip().strip("\"'")
-                for item in value[1:-1].split(",")
-                if item.strip()
-            ]
-        else:
-            data[key.strip()] = value
+        data[key.strip()] = parse_yaml_scalar(raw_value)
     return data
+
+
+def parse_frontmatter(path: Path) -> dict[str, Any]:
+    return parse_frontmatter_text(read_text_file(path))
+
+
+MANAGED_POST_FIELDS = {"title", "description", "tags", "draft", "pubDate", "updatedDate", "heroImage"}
+BLOCK_SCALAR_MARKERS = {"|", "|-", "|+", ">", ">-", ">+"}
+
+
+def complex_managed_frontmatter_fields(text: str) -> list[str]:
+    if not text.startswith("---"):
+        return []
+    end = text.find("\n---", 3)
+    if end == -1:
+        return []
+
+    lines = text[3:end].splitlines()
+    complex_fields: list[str] = []
+    for index, raw_line in enumerate(lines):
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$", raw_line)
+        if not match or match.group(1) not in MANAGED_POST_FIELDS:
+            continue
+        value = strip_yaml_inline_comment(match.group(2).strip())
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        if value in BLOCK_SCALAR_MARKERS or (not value and next_line.startswith((" ", "\t"))):
+            complex_fields.append(match.group(1))
+    return complex_fields
+
+
+def preserved_frontmatter_lines(text: str) -> list[str]:
+    if not text.startswith("---"):
+        return []
+    end = text.find("\n---", 3)
+    if end == -1:
+        return []
+
+    preserved: list[str] = []
+    keep_block = False
+    for raw_line in text[3:end].splitlines():
+        key_match = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*)\s*:", raw_line)
+        if key_match:
+            keep_block = key_match.group(1) not in MANAGED_POST_FIELDS
+        if keep_block:
+            preserved.append(raw_line)
+    return preserved
 
 
 def new_post_path_from_source(content: str, suffix: str) -> tuple[Path | None, str | None]:
@@ -648,10 +801,7 @@ def save_post_as_template(form: dict[str, str]) -> CommandResult:
     filename = f"{slugify(title)}{path.suffix.lower() if path.suffix.lower() in POST_EXTENSIONS else '.md'}"
     target = unique_path(POST_TEMPLATES_DIR, filename)
     text = read_text_file(path)
-    if re.search(r"(?m)^draft:\s*(true|false)\s*$", text):
-        text = re.sub(r"(?m)^draft:\s*(true|false)\s*$", "draft: true", text, count=1)
-    elif text.startswith("---\n"):
-        text = text.replace("---\n", "---\ndraft: true\n", 1)
+    text = set_draft_frontmatter(text, True)
     target.write_text(text, encoding="utf-8")
     return CommandResult(0, f"已保存为模板：{target.relative_to(ROOT)}")
 
@@ -668,10 +818,7 @@ def initialize_post_templates() -> None:
         if target.exists():
             continue
         text = read_text_file(path)
-        if re.search(r"(?m)^draft:\s*(true|false)\s*$", text):
-            text = re.sub(r"(?m)^draft:\s*(true|false)\s*$", "draft: true", text, count=1)
-        elif text.startswith("---\n"):
-            text = text.replace("---\n", "---\ndraft: true\n", 1)
+        text = set_draft_frontmatter(text, True)
         target.write_text(text, encoding="utf-8")
 
 
@@ -744,11 +891,13 @@ def parse_multipart_multi(body: bytes, content_type: str) -> tuple[dict[str, str
     files: dict[str, list[UploadedFile]] = {}
 
     for part in body.split(delimiter):
-        part = part.strip(b"\r\n")
+        if part.startswith(b"\r\n"):
+            part = part[2:]
+        if part.endswith(b"\r\n"):
+            part = part[:-2]
         if not part or part == b"--" or b"\r\n\r\n" not in part:
             continue
         raw_headers, payload = part.split(b"\r\n\r\n", 1)
-        payload = payload.rstrip(b"\r\n")
         headers = raw_headers.decode("utf-8", errors="replace").split("\r\n")
         disposition = ""
         part_type = ""
@@ -820,13 +969,29 @@ heroImage: '../../assets/blog-placeholder-1.jpg'
 """
 
 
+def validate_post_metadata(title: str, description: str, tags: list[str]) -> str | None:
+    if not title:
+        return "请填写文章标题。"
+    if len(title) > 80:
+        return "文章标题最多 80 个字符。"
+    if not description:
+        return "请填写文章摘要。"
+    if len(description) > 180:
+        return "文章摘要最多 180 个字符。"
+    if len(tags) > 8:
+        return "一篇文章最多使用 8 个标签。"
+    if any(not tag or len(tag) > 30 for tag in tags):
+        return "每个标签必须为 1-30 个字符。"
+    return None
+
+
 def create_post(form: dict[str, str]) -> CommandResult:
     title = form.get("title", "").strip()
-    if not title:
-        return CommandResult(1, "请先填写文章标题。")
-
     description = form.get("description", "").strip() or "这是一篇新的博客文章。"
     tags = [tag.strip() for tag in re.split(r"[,，]", form.get("tags", "")) if tag.strip()]
+    validation_error = validate_post_metadata(title, description, tags)
+    if validation_error:
+        return CommandResult(1, validation_error)
     draft = form.get("draft", "") == "on"
     pub_date = form.get("pubDate", "").strip() or date.today().isoformat()
     suffix = ".mdx" if form.get("format") == "mdx" else ".md"
@@ -848,11 +1013,7 @@ def publish_post(form: dict[str, str]) -> CommandResult:
     if not path.is_file() or POSTS_DIR not in path.parents:
         return CommandResult(1, "文章路径无效。")
 
-    text = path.read_text(encoding="utf-8")
-    if re.search(r"(?m)^draft:\s*true\s*$", text):
-        text = re.sub(r"(?m)^draft:\s*true\s*$", "draft: false", text, count=1)
-    elif not re.search(r"(?m)^draft:", text):
-        text = text.replace("---\n", "---\ndraft: false\n", 1)
+    text = set_draft_frontmatter(path.read_text(encoding="utf-8"), False)
     path.write_text(text, encoding="utf-8")
     return CommandResult(0, f"已标记为发布：{path.relative_to(ROOT)}")
 
@@ -863,13 +1024,7 @@ def set_post_visibility(form: dict[str, str]) -> CommandResult:
         return CommandResult(1, "文章路径无效。")
     visible = form.get("visible", "true") == "true"
     text = read_text_file(path)
-    draft_line = f"draft: {'false' if visible else 'true'}"
-    if re.search(r"(?m)^draft:\s*(true|false)\s*$", text):
-        text = re.sub(r"(?m)^draft:\s*(true|false)\s*$", draft_line, text, count=1)
-    elif text.startswith("---\n"):
-        text = text.replace("---\n", f"---\n{draft_line}\n", 1)
-    else:
-        text = f"---\n{draft_line}\n---\n\n{text}"
+    text = set_draft_frontmatter(text, not visible)
     path.write_text(text, encoding="utf-8")
     return CommandResult(0, f"已{'显示' if visible else '隐藏'}文章：{relative_to_root(path)}")
 
@@ -879,16 +1034,25 @@ def save_post(form: dict[str, str], files: dict[str, UploadedFile] | None = None
     if not path:
         return CommandResult(1, "文章路径无效。")
 
-    title = form.get("title", "").strip()
-    if not title:
-        return CommandResult(1, "请填写文章标题。")
+    original_source = read_text_file(path)
+    complex_fields = complex_managed_frontmatter_fields(original_source)
+    if complex_fields:
+        fields = "、".join(complex_fields)
+        return CommandResult(1, f"这篇文章的 {fields} 使用了高级 YAML 格式。请改用源码编辑器保存，避免格式被改坏。")
+    existing_tags = parse_frontmatter_text(original_source).get("tags", [])
+    if isinstance(existing_tags, list) and any("," in str(tag) or "，" in str(tag) for tag in existing_tags):
+        return CommandResult(1, "这篇文章有包含逗号的标签。请改用源码编辑器保存，避免标签被拆开。")
 
+    title = form.get("title", "").strip()
     description = form.get("description", "").strip()
     pub_date = form.get("pubDate", "").strip() or date.today().isoformat()
     updated_date = form.get("updatedDate", "").strip()
     hero_image = form.get("heroImage", "").strip()
     body = form.get("body", "").replace("\r\n", "\n").strip()
     tags = [tag.strip() for tag in re.split(r"[,，]", form.get("tags", "")) if tag.strip()]
+    validation_error = validate_post_metadata(title, description, tags)
+    if validation_error:
+        return CommandResult(1, validation_error)
     draft = parse_checkbox(form.get("draft", ""))
 
     try:
@@ -898,6 +1062,7 @@ def save_post(form: dict[str, str], files: dict[str, UploadedFile] | None = None
     if cover_upload:
         hero_image = asset_path_for_post(cover_upload[0], path)
 
+    preserved_lines = preserved_frontmatter_lines(original_source)
     lines = [
         "---",
         f"title: {yaml_quote(title)}",
@@ -910,6 +1075,7 @@ def save_post(form: dict[str, str], files: dict[str, UploadedFile] | None = None
         lines.append(f"updatedDate: {yaml_quote(updated_date)}")
     if hero_image:
         lines.append(f"heroImage: {yaml_quote(hero_image)}")
+    lines.extend(preserved_lines)
     lines.extend(["---", "", body, ""])
 
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -959,6 +1125,15 @@ def upload_editor_images(multi_files: dict[str, list[UploadedFile]]) -> CommandR
     uploads = multi_files.get("images", [])
     if not uploads:
         return CommandResult(1, "请选择至少一张图片。")
+    if len(uploads) > MAX_UPLOAD_FILES:
+        return CommandResult(1, f"一次最多上传 {MAX_UPLOAD_FILES} 张图片。")
+
+    for upload in uploads:
+        filename = safe_filename(upload.filename, "image")
+        if Path(filename).suffix.lower() not in UPLOAD_IMAGE_EXTENSIONS:
+            return CommandResult(1, "图片只支持 jpg、jpeg、png、webp、avif、gif；为安全起见不接收 SVG 上传。")
+        if len(upload.data) > MAX_UPLOAD_BYTES:
+            return CommandResult(1, "单个图片不能超过 12 MiB。")
 
     snippets: list[str] = []
     for upload in uploads:
@@ -1096,10 +1271,15 @@ def update_theme(form: dict[str, str], files: dict[str, UploadedFile] | None = N
     custom_fonts = [font for font in theme.get("customFonts", []) if isinstance(font, dict)]
 
     family = form.get("fontFamily", "").strip()
+    weight = form.get("fontWeight", "").strip() or "400"
     upload = (files or {}).get("fontFile")
     if upload and upload.filename:
         if not family:
             family = Path(upload.filename).stem
+        if not re.fullmatch(r"[\w -]{1,80}", family, flags=re.UNICODE):
+            return CommandResult(1, "字体名称只能包含文字、数字、空格、下划线和连字符。")
+        if not re.fullmatch(r"(?:normal|bold|[1-9]00)", weight):
+            return CommandResult(1, "字体粗细无效。")
         try:
             url, fmt, stem = save_font_file(upload, slugify(family or "custom-font"))
         except ValueError as exc:
@@ -1112,7 +1292,7 @@ def update_theme(form: dict[str, str], files: dict[str, UploadedFile] | None = N
                 "family": family,
                 "url": url,
                 "format": fmt,
-                "weight": form.get("fontWeight", "").strip() or "400",
+                "weight": weight,
             }
         )
         if parse_checkbox(form.get("applyUploadedToBody", "")):
@@ -1197,7 +1377,7 @@ def start_preview() -> CommandResult:
             [npm, "run", "dev", "--", "--host", PREVIEW_HOST, "--port", str(PREVIEW_PORT)],
             cwd=str(SITE_DIR),
             text=True,
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
             errors="replace",
@@ -1537,7 +1717,7 @@ def render_editor_page(
       <div class="editor-toolbar">
         <button id="save-button" type="button">保存</button>
         <label class="compact">
-          <input id="image-upload" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif,.svg,image/*" multiple>
+          <input id="image-upload" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif" multiple>
         </label>
         <button class="ghost" id="upload-button" type="button">插入图片</button>
         <span>类型：<code id="file-kind">{html_escape(kind)}</code></span>
@@ -1562,6 +1742,7 @@ def render_editor_page(
     const siteRoute = {json.dumps(site_route, ensure_ascii=False)};
     const previewBase = {json.dumps(f"http://{PREVIEW_HOST}:{PREVIEW_PORT}", ensure_ascii=False)};
     const isNewPost = {json.dumps(is_new_post)};
+    const csrfToken = {json.dumps(CSRF_TOKEN)};
     const editor = document.getElementById('source-editor');
     const preview = document.getElementById('preview');
     const status = document.getElementById('editor-status');
@@ -1819,6 +2000,7 @@ def render_editor_page(
       body.set('file', currentFile);
       body.set('content', editor.value);
       body.set('suffix', suffix);
+      body.set('_csrf', csrfToken);
       const response = await fetch('/action/save_source', {{ method: 'POST', body }});
       const text = await response.text();
       status.textContent = text;
@@ -1850,6 +2032,7 @@ def render_editor_page(
       }}
       status.textContent = '上传中...';
       const body = new FormData();
+      body.set('_csrf', csrfToken);
       for (const file of input.files) body.append('images', file);
       const response = await fetch('/action/upload_editor_images', {{ method: 'POST', body }});
       const text = await response.text();
@@ -1987,9 +2170,9 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         <form method="post" action="/action/save_post" enctype="multipart/form-data">
           <input type="hidden" name="file" value="{html_escape(edit_post['file'])}">
           <label>标题</label>
-          <input name="title" required value="{html_escape(edit_post['title'])}">
+          <input name="title" required maxlength="80" value="{html_escape(edit_post['title'])}">
           <label>摘要</label>
-          <textarea name="description">{html_escape(edit_post['description'])}</textarea>
+          <textarea name="description" required maxlength="180">{html_escape(edit_post['description'])}</textarea>
           <label>标签（用逗号分隔）</label>
           <input name="tags" value="{html_escape(edit_post['tags'])}">
           <label>发布日期</label>
@@ -2207,9 +2390,9 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         <h2>新建文章</h2>
         <form method="get" action="/post/new">
           <label>标题</label>
-          <input name="title" required placeholder="例如：今天把博客控制面板做起来">
+          <input name="title" required maxlength="80" placeholder="例如：今天把博客控制面板做起来">
           <label>摘要</label>
-          <textarea name="description" placeholder="一句话说明这篇文章写什么"></textarea>
+          <textarea name="description" required maxlength="180" placeholder="一句话说明这篇文章写什么"></textarea>
           <label>标签（用逗号分隔）</label>
           <input name="tags" placeholder="建站, 记录">
           <label>发布日期</label>
@@ -2223,7 +2406,8 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <label>格式</label>
           <select name="format"><option value="md">Markdown</option><option value="mdx">MDX</option></select>
           <span class="hint">选择模板时会优先使用模板自己的 md/mdx 格式。</span>
-          <label><input style="width:auto" type="checkbox" name="draft"> 先隐藏，不在网站显示</label>
+          <input type="hidden" name="draft" value="off">
+          <label><input style="width:auto" type="checkbox" name="draft" value="on" checked> 先隐藏，不在网站显示</label>
           <div class="actions"><button type="submit">进入编辑器</button></div>
         </form>
       </div>
@@ -2415,7 +2599,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <label>当前首页背景图路径</label>
           <input name="heroBackground" value="{html_escape(home.get('heroBackground', ''))}" placeholder="/uploads/home/background.webp">
           <label>上传首页背景图（jpg、png、webp、avif、gif、svg）</label>
-          <input name="heroBackgroundFile" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif,.svg,image/*">
+          <input name="heroBackgroundFile" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif">
           <h3>透明度</h3>
           <div class="field-grid">
             <div>
@@ -2483,7 +2667,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <label>图片说明（会作为 alt 文本）</label>
           <input name="alt" placeholder="例如：控制面板截图">
           <label>选择图片（jpg、png、webp、avif、gif、svg）</label>
-          <input name="image" required type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif,.svg,image/*">
+          <input name="image" required type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif">
           <span class="hint">保存后会自动把 Markdown 图片语法追加到文章末尾，你也可以打开文章编辑区，把那一行移动到正文中想放的位置。</span>
           <div class="actions"><button type="submit" {'disabled' if not posts else ''}>上传并插入</button></div>
         </form>
@@ -2504,7 +2688,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <label>头像</label>
           <input name="avatar" placeholder="/favicon.svg 或 https://...">
           <label>上传头像（推荐本地保存，避免外链失效）</label>
-          <input name="avatarFile" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif,.svg,image/*">
+          <input name="avatarFile" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif">
           <span class="hint">上传头像会保存到 site/public/uploads/avatars/，友链页会自动使用 /favicon.svg 作为加载失败兜底。</span>
           <div class="actions"><button type="submit">添加友链</button></div>
         </form>
@@ -2548,7 +2732,14 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
 
 
 class BlogPanelHandler(BaseHTTPRequestHandler):
+    def trusted_request(self) -> bool:
+        host = self.headers.get("Host", "")
+        return is_trusted_host(host, self.server.server_port)
+
     def do_HEAD(self) -> None:
+        if not self.trusted_request():
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
         parsed = urlparse(self.path)
         if parsed.path != "/":
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -2556,6 +2747,9 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         self.send_html(render_page(), include_body=False)
 
     def do_GET(self) -> None:
+        if not self.trusted_request():
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
         if parsed.path == "/":
@@ -2567,7 +2761,7 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
             description = query.get("description", [""])[-1].strip() or "这是一篇新的博客文章。"
             tags = [tag.strip() for tag in re.split(r"[,，]", query.get("tags", [""])[-1]) if tag.strip()]
             pub_date = query.get("pubDate", [""])[-1].strip() or date.today().isoformat()
-            draft = query.get("draft", [""])[-1] == "on"
+            draft = query.get("draft", ["on"])[-1] == "on"
             template_rel = query.get("template", [""])[-1]
             requested_suffix = ".mdx" if query.get("format", ["md"])[-1] == "mdx" else ".md"
             content, template_suffix = source_from_template(template_rel, title, description, tags, draft, pub_date)
@@ -2647,8 +2841,21 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
             return
 
     def do_POST(self) -> None:
+        host = self.headers.get("Host", "")
+        origin = self.headers.get("Origin", "")
+        if not self.trusted_request() or not is_trusted_origin(origin, host):
+            self.send_text("请求来源无效，操作已拒绝。", status=HTTPStatus.FORBIDDEN)
+            return
+
         parsed = urlparse(self.path)
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.send_text("请求长度无效。", status=HTTPStatus.BAD_REQUEST)
+            return
+        if length < 0 or length > MAX_REQUEST_BYTES:
+            self.send_text("请求过大，单次提交最多 32 MiB。", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return
         content_type = self.headers.get("Content-Type", "")
         raw_body = self.rfile.read(length)
         files: dict[str, UploadedFile] = {}
@@ -2659,6 +2866,11 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         else:
             body = raw_body.decode("utf-8", errors="replace")
             form = {key: values[-1] for key, values in parse_qs(body, keep_blank_values=True).items()}
+
+        supplied_token = form.pop("_csrf", "")
+        if not supplied_token or not secrets.compare_digest(supplied_token, CSRF_TOKEN):
+            self.send_text("页面校验已失效，请刷新控制面板后重试。", status=HTTPStatus.FORBIDDEN)
+            return
 
         if parsed.path == "/action/save_source":
             result = save_source_file(form)
@@ -2696,9 +2908,10 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         self.send_html(render_page(action(form)))
 
     def send_html(self, content: str, include_body: bool = True) -> None:
-        payload = content.encode("utf-8")
+        payload = inject_csrf_fields(content).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_security_headers()
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         if include_body:
@@ -2708,6 +2921,7 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         payload = content.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_security_headers()
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -2717,9 +2931,17 @@ class BlogPanelHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
+        self.send_security_headers()
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def send_security_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
 
     def log_message(self, format: str, *args: Any) -> None:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {format % args}")

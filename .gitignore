@@ -14,3 +14,17 @@ __pycache__/
 id_rsa*
 id_ed25519*
 scripts/github_token.txt
+
+# Local visual-test/browser profiles and design iterations
+/.tmp-*/
+/site/design-previews/
+/site/image-candidates/
+
+# Superseded local image originals kept only as a personal archive
+/site/public/uploads/2.png
+/site/public/uploads/home/2.png
+/site/public/uploads/posts/ai-xianxia-reference.png
+/site/public/uploads/posts/blog-xs.png
+/site/src/assets/1.png
+/site/src/assets/ai-xianxia-reference.png
+/site/src/assets/blog-xs.png

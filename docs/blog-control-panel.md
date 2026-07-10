@@ -74,7 +74,6 @@ python .\scripts\blog_panel.py
 - `site/dist/`
 - `site/.astro/`
 - `.env`、`.env.*`
-- `scripts/github_token.txt`
 - SSH 私钥、`.pem`、`.key`、`.p12`、`.pfx`
 
 ## 文章草稿
@@ -86,6 +85,8 @@ draft: true
 ```
 
 草稿不会出现在首页、文章列表、标签、归档、搜索和 RSS 里。写完后在面板点击“发布这篇”即可公开。
+
+草稿不是加密内容：如果仓库对外可见，草稿源码仍可能被看到。不要把密码、token、隐私信息或未授权内容写进草稿。
 
 已发布文章也可以在面板里重新编辑。保存后本地 Markdown/MDX 文件会被更新，确认效果后再点击“构建并推送”。
 
@@ -105,7 +106,7 @@ site/public/uploads/posts/
 
 如果图片要放在正文中间，保存后打开“编辑已有文章”，把这行移动到合适的位置即可。
 
-首页背景图和正文插图支持 `jpg`、`jpeg`、`png`、`webp`、`avif`、`gif`、`svg`。文章封面图用于 Astro 图片优化，推荐使用 `jpg`、`jpeg`、`png`、`webp`、`avif`。
+控制面板上传的首页背景图和正文插图支持 `jpg`、`jpeg`、`png`、`webp`、`avif`、`gif`，单个文件最多 12 MiB；为避免同源脚本风险，面板不接收 SVG 上传。文章封面图用于 Astro 图片优化，推荐使用 `webp` 或 `avif`，日常尽量控制在 1 MiB 内。
 
 ## 首页
 
@@ -150,20 +151,14 @@ site/src/data/friends.json
 
 头像可以填远程链接，也可以在控制面板上传本地图片。推荐上传本地图片，避免对方网站头像改地址或加载失败。友链页已经设置兜底头像，加载失败时会显示 `/favicon.svg`。
 
-## GitHub 密钥
+## GitHub 登录
 
-日常推送推荐使用 SSH key。SSH key 保存在当前电脑用户目录的 `.ssh` 里，不在仓库里。
-
-如果你使用 GitHub token，可以把它放在：
-
-```text
-scripts/github_token.txt
-```
-
-这个文件已经被 `.gitignore` 忽略，不会上传。换电脑后需要重新配置 SSH key 或重新放 token。
+日常推送推荐使用 SSH key 或 Git Credential Manager。凭据由 Git 管理，不要把 token 写进仓库目录，也不要粘贴到文章、日志或控制面板源码里。换电脑后需要重新配置 GitHub 登录。
 
 ## 注意
 
 - 控制面板只建议在本机打开，不要暴露到公网。
 - “构建并推送”会真正提交并推送到远程仓库。
 - Cloudflare Pages 会在 GitHub 收到 push 后自动部署。
+- 发布前检查面板显示的文件清单；如果出现浏览器目录、几百个文件或陌生大文件，先停止操作。
+- 完整维护、备份和回滚流程见 [maintenance.md](maintenance.md)。

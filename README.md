@@ -2,6 +2,8 @@
 
 这是一个 Astro 静态博客项目。网站源码在 `site/`，本地管理工具在 `scripts/`，日常写文章、管理友链、预览、构建和推送都可以通过控制面板完成。
 
+第一次维护前先看 [博客日常维护规则](docs/maintenance.md)，里面说明了写作、发布、回滚、备份和素材清理的最小流程。
+
 ## 快速开始
 
 Windows 上双击根目录的：
@@ -116,13 +118,15 @@ heroImage: "../../assets/blog-placeholder-1.jpg"
 
 `draft: true` 的文章不会出现在首页、列表、标签、归档、搜索和 RSS 中。写完后在控制面板里发布即可。已发布文章也可以在控制面板里重新打开编辑。
 
+注意：草稿只是不在网站显示。如果仓库托管在 GitHub，草稿源码仍可能被仓库访问者看到，因此不要在草稿里保存密码、token、隐私信息或未授权内容。
+
 正文里放图片时，推荐用控制面板的“给文章插入图片”。图片会保存到 `site/public/uploads/posts/`，面板会自动生成：
 
 ```md
 ![图片说明](/uploads/posts/example.webp)
 ```
 
-首页背景图和文章正文图支持 `jpg`、`jpeg`、`png`、`webp`、`avif`、`gif`、`svg`。文章封面图走 Astro 图片优化，更推荐 `jpg`、`jpeg`、`png`、`webp`、`avif`。
+控制面板上传的首页背景图和文章正文图支持 `jpg`、`jpeg`、`png`、`webp`、`avif`、`gif`；面板不接收 SVG 上传。文章封面图走 Astro 图片优化，更推荐 `webp` 或 `avif`。
 
 ## 友链
 
@@ -154,7 +158,6 @@ site/src/data/navigation.json
 - `site/dist/`
 - `site/.astro/`
 - `.env`、`.env.*`
-- `scripts/github_token.txt`
 - Python 缓存
 - SSH 私钥和常见证书文件
 
