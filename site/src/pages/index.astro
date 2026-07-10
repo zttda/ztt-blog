@@ -54,7 +54,7 @@ const customSections = home.sections?.filter((section) => section.enabled) ?? []
 				<div class="hero-mobile-sticker" aria-hidden="true"></div>
 				<div class="hero-copy">
 					<p class="hero-kicker">{home.kicker}</p>
-					<h1>{SITE_TITLE}</h1>
+					<h1>{home.title || SITE_TITLE}</h1>
 					<p>{home.description}</p>
 					<div class="actions">
 						<a class="button" href={latestPostHref}>{home.primaryLabel}</a>
