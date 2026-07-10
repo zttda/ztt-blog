@@ -6,37 +6,432 @@ import { SITE_TITLE } from '../../consts';
 import { getPublishedPosts } from '../../utils/posts';
 
 const posts = await getPublishedPosts();
-const tagCounts = posts.reduce((counts, post) => {
-	for (const tag of post.data.tags) {
-		counts.set(tag, (counts.get(tag) ?? 0) + 1);
+const tagMap = new Map<
+	string,
+	{ count: number; latestTitle: string; latestDate: Date }
+>();
+
+for (const post of posts) {
+	for (const tag of new Set(post.data.tags)) {
+		const current = tagMap.get(tag);
+		if (!current) {
+			tagMap.set(tag, {
+				count: 1,
+				latestTitle: post.data.title,
+				latestDate: post.data.pubDate,
+			});
+			continue;
+		}
+
+		current.count += 1;
+		if (post.data.pubDate.valueOf() > current.latestDate.valueOf()) {
+			current.latestTitle = post.data.title;
+			current.latestDate = post.data.pubDate;
+		}
 	}
-	return counts;
-}, new Map<string, number>());
-const tags = [...tagCounts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'zh-CN'));
+}
+
+const tags = [...tagMap.entries()]
+	.map(([name, detail]) => ({ name, ...detail }))
+	.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-CN'));
 ---
 
 <!doctype html>
 <html lang="zh-CN">
 	<head>
 		<BaseHead title={`标签 | ${SITE_TITLE}`} description="按主题查看博客文章。" schemaType="collection" />
+		<style>
+			.tag-catalog {
+				width: min(1120px, calc(100% - 2rem));
+			}
+
+			.tag-catalog-hero {
+				position: relative;
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: clamp(1.5rem, 5vw, 4.5rem);
+				align-items: end;
+				border: 2px solid rgba(var(--line), 0.72);
+				border-radius: 28px;
+				background:
+					linear-gradient(115deg, rgba(var(--surface), 0.96), rgba(var(--surface-subtle), 0.76)),
+					repeating-linear-gradient(0deg, transparent 0 31px, rgba(var(--accent-rgb), 0.08) 31px 32px);
+				padding: clamp(1.4rem, 4vw, 3rem);
+				overflow: hidden;
+				box-shadow: var(--shadow);
+			}
+
+			.tag-catalog-hero::before {
+				position: absolute;
+				top: -2.4rem;
+				right: clamp(10rem, 24vw, 18rem);
+				width: 7.5rem;
+				height: 4.25rem;
+				background: rgba(255, 190, 62, 0.34);
+				content: '';
+				transform: rotate(-5deg);
+				box-shadow: 0 1px 0 rgba(255, 255, 255, 0.52) inset;
+			}
+
+			.tag-catalog-copy,
+			.tag-catalog-stats {
+				position: relative;
+				z-index: 1;
+			}
+
+			.tag-catalog-copy h1 {
+				margin-bottom: 0.8rem;
+				font-size: clamp(2.65rem, 7vw, 5rem);
+				line-height: 0.98;
+				text-shadow: 0.045em 0.045em 0 rgba(255, 190, 62, 0.24);
+			}
+
+			.tag-catalog-copy .page-lede {
+				max-width: 38rem;
+				margin: 0;
+				font-size: clamp(1rem, 2vw, 1.12rem);
+			}
+
+			.tag-catalog-stats {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(6.4rem, 1fr));
+				margin: 0;
+				border: 2px solid rgba(var(--accent-rgb), 0.2);
+				border-radius: 20px;
+				background: rgba(var(--surface), 0.76);
+				box-shadow: 4px 5px 0 rgba(var(--accent-rgb), 0.1);
+			}
+
+			.tag-catalog-stats div {
+				display: flex;
+				min-height: 7rem;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				padding: 0.85rem;
+				text-align: center;
+			}
+
+			.tag-catalog-stats div + div {
+				border-left: 1px dashed rgba(var(--line), 0.9);
+			}
+
+			.tag-catalog-stats dt {
+				order: 2;
+				color: rgb(var(--muted));
+				font-size: 0.78rem;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+			}
+
+			.tag-catalog-stats dd {
+				margin: 0 0 0.2rem;
+				color: var(--accent);
+				font-family: var(--font-heading);
+				font-size: 2.2rem;
+				font-weight: 700;
+				line-height: 1;
+			}
+
+			.tag-catalog-section {
+				margin-top: clamp(2.5rem, 6vw, 4.5rem);
+			}
+
+			.tag-catalog-heading {
+				display: flex;
+				gap: 1.5rem;
+				align-items: end;
+				justify-content: space-between;
+				margin-bottom: 1.35rem;
+				border-bottom: 1px dashed rgba(var(--line), 0.86);
+				padding-bottom: 1rem;
+			}
+
+			.tag-catalog-heading h2 {
+				margin: 0;
+				font-size: clamp(1.75rem, 4vw, 2.65rem);
+			}
+
+			.tag-catalog-heading p {
+				max-width: 24rem;
+				margin: 0;
+				color: rgb(var(--muted));
+				font-size: 0.95rem;
+				text-align: right;
+			}
+
+			.tag-catalog-grid {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 1.15rem;
+			}
+
+			.tag-index-card {
+				--note-accent: 47, 127, 230;
+				position: relative;
+				display: grid;
+				min-height: 13.5rem;
+				grid-template-rows: auto 1fr auto;
+				border: 2px solid rgba(var(--line), 0.76);
+				border-radius: 22px 22px 16px 16px;
+				background:
+					linear-gradient(180deg, rgba(var(--note-accent), 0.12), transparent 4.5rem),
+					repeating-linear-gradient(0deg, transparent 0 30px, rgba(var(--accent-rgb), 0.055) 30px 31px),
+					rgba(var(--surface), 0.9);
+				color: inherit;
+				padding: 1.15rem 1.15rem 1rem;
+				text-decoration: none;
+				overflow: hidden;
+				box-shadow: 0 8px 22px rgba(var(--note-accent), 0.09);
+				transition:
+					transform 180ms ease,
+					border-color 180ms ease,
+					box-shadow 180ms ease;
+			}
+
+			.tag-index-card:nth-child(3n + 2) {
+				--note-accent: 240, 79, 154;
+			}
+
+			.tag-index-card:nth-child(3n + 3) {
+				--note-accent: 244, 154, 69;
+			}
+
+			.tag-index-card::before {
+				position: absolute;
+				top: 0;
+				left: 1.15rem;
+				width: 4.5rem;
+				height: 0.42rem;
+				border-radius: 0 0 999px 999px;
+				background: rgb(var(--note-accent));
+				content: '';
+				opacity: 0.76;
+			}
+
+			.tag-index-card:hover {
+				border-color: rgba(var(--note-accent), 0.58);
+				box-shadow: 0 15px 32px rgba(var(--note-accent), 0.14);
+				transform: translateY(-4px) rotate(-0.35deg);
+			}
+
+			.tag-index-card__top,
+			.tag-index-card__footer {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.75rem;
+			}
+
+			.tag-index-card__count {
+				display: inline-flex;
+				min-height: 2rem;
+				align-items: center;
+				border: 1px solid rgba(var(--note-accent), 0.3);
+				border-radius: 999px;
+				background: rgba(var(--surface), 0.72);
+				padding: 0.15rem 0.65rem;
+				color: rgb(var(--muted));
+				font-size: 0.8rem;
+				font-weight: 700;
+			}
+
+			.tag-index-card__number {
+				color: rgba(var(--note-accent), 0.62);
+				font-family: var(--font-heading);
+				font-size: 0.86rem;
+				font-weight: 700;
+				letter-spacing: 0.12em;
+			}
+
+			.tag-index-card__body {
+				align-self: center;
+				padding: 1rem 0;
+			}
+
+			.tag-index-card h3 {
+				margin: 0 0 0.6rem;
+				font-size: clamp(1.55rem, 3vw, 2.15rem);
+				overflow-wrap: anywhere;
+			}
+
+			.tag-index-card h3 span {
+				margin-right: 0.15em;
+				color: rgb(var(--note-accent));
+			}
+
+			.tag-index-card__latest {
+				display: -webkit-box;
+				margin: 0;
+				color: rgb(var(--muted));
+				font-size: 0.92rem;
+				line-height: 1.55;
+				overflow: hidden;
+				-webkit-box-orient: vertical;
+				-webkit-line-clamp: 2;
+			}
+
+			.tag-index-card__footer {
+				border-top: 1px dashed rgba(var(--line), 0.8);
+				padding-top: 0.7rem;
+				color: rgb(var(--muted));
+				font-size: 0.84rem;
+				font-weight: 700;
+			}
+
+			.tag-index-card__arrow {
+				display: inline-flex;
+				width: 2rem;
+				height: 2rem;
+				align-items: center;
+				justify-content: center;
+				border-radius: 999px;
+				background: rgba(var(--note-accent), 0.14);
+				color: rgb(var(--note-accent));
+				font-size: 1.15rem;
+				transition: transform 180ms ease;
+			}
+
+			.tag-index-card:hover .tag-index-card__arrow {
+				transform: translateX(3px);
+			}
+
+			.tag-catalog-empty {
+				border: 2px dashed rgba(var(--line), 0.88);
+				border-radius: 22px;
+				background: rgba(var(--surface), 0.72);
+				padding: 2rem;
+				color: rgb(var(--muted));
+				text-align: center;
+			}
+
+			@media (max-width: 900px) {
+				.tag-catalog-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+			}
+
+			@media (max-width: 720px) {
+				.tag-catalog {
+					width: min(100% - 1.2rem, 1120px);
+				}
+
+				.tag-catalog-hero {
+					grid-template-columns: 1fr;
+					align-items: start;
+					border-radius: 22px;
+				}
+
+				.tag-catalog-stats {
+					width: min(100%, 22rem);
+				}
+
+				.tag-catalog-stats div {
+					min-height: 5.6rem;
+				}
+
+				.tag-catalog-heading {
+					align-items: flex-start;
+					flex-direction: column;
+					gap: 0.5rem;
+				}
+
+				.tag-catalog-heading p {
+					text-align: left;
+				}
+			}
+
+			@media (max-width: 540px) {
+				.tag-catalog-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.tag-index-card {
+					min-height: 12rem;
+				}
+
+				.tag-index-card:hover {
+					transform: translateY(-2px);
+				}
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.tag-index-card,
+				.tag-index-card__arrow {
+					transition: none;
+				}
+
+				.tag-index-card:hover,
+				.tag-index-card:hover .tag-index-card__arrow {
+					transform: none;
+				}
+			}
+
+			@media (hover: none), (pointer: coarse) {
+				.tag-index-card:hover,
+				.tag-index-card:hover .tag-index-card__arrow {
+					transform: none;
+				}
+			}
+		</style>
 	</head>
 	<body>
 		<Header />
-		<main id="main-content">
-			<p class="eyebrow">Tags</p>
-			<h1>标签</h1>
-			<p class="page-lede">按主题浏览已经发布的文章。</p>
+		<main id="main-content" class="tag-catalog">
+			<section class="tag-catalog-hero" aria-labelledby="tag-catalog-title">
+				<div class="tag-catalog-copy">
+					<p class="eyebrow">Topic index · 主题目录</p>
+					<h1 id="tag-catalog-title">标签索引</h1>
+					<p class="page-lede">像翻手帐目录一样，从一个关键词出发，找到相关的记录与实践。</p>
+				</div>
+				<dl class="tag-catalog-stats" aria-label="标签统计">
+					<div>
+						<dt>个主题</dt>
+						<dd>{tags.length}</dd>
+					</div>
+					<div>
+						<dt>篇文章</dt>
+						<dd>{posts.length}</dd>
+					</div>
+				</dl>
+			</section>
 
-			<div class="grid">
+			<section class="tag-catalog-section" aria-labelledby="tag-catalog-list-title">
+				<div class="tag-catalog-heading">
+					<div>
+						<p class="eyebrow">Browse by topic</p>
+						<h2 id="tag-catalog-list-title">从一个主题开始</h2>
+					</div>
+					<p>文章较多的主题排在前面；数量相同时按名称排列。</p>
+				</div>
+
 				{
-					tags.map(([tag, count]) => (
-						<a class="tag-card" href={`/tags/${encodeURIComponent(tag)}/`}>
-							<h2>{tag}</h2>
-							<p class="muted">{count} 篇文章</p>
-						</a>
-					))
+					tags.length > 0 ? (
+						<div class="tag-catalog-grid">
+							{tags.map((tag, index) => (
+								<a class="tag-index-card" href={`/tags/${encodeURIComponent(tag.name)}/`}>
+									<div class="tag-index-card__top">
+										<span class="tag-index-card__count">{tag.count} 篇文章</span>
+										<span class="tag-index-card__number" aria-hidden="true">
+											{String(index + 1).padStart(2, '0')}
+										</span>
+									</div>
+									<div class="tag-index-card__body">
+										<h3><span aria-hidden="true">#</span>{tag.name}</h3>
+										<p class="tag-index-card__latest">最近收录：{tag.latestTitle}</p>
+									</div>
+									<div class="tag-index-card__footer">
+										<span>查看这个主题</span>
+										<span class="tag-index-card__arrow" aria-hidden="true">→</span>
+									</div>
+								</a>
+							))}
+						</div>
+					) : (
+						<p class="tag-catalog-empty">暂时还没有公开标签。发布带标签的文章后，这里会自动生成主题卡片。</p>
+					)
 				}
-			</div>
+			</section>
 		</main>
 		<Footer />
 	</body>

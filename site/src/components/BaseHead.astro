@@ -7,7 +7,7 @@ import type { ImageMetadata } from 'astro';
 import FallbackImage from '../assets/blog-placeholder-1.jpg';
 import { SITE_AUTHOR, SITE_TITLE, SITE_URL } from '../consts';
 import theme from '../data/theme.json';
-import { DARK_THEME_IDS, DEFAULT_THEME_ID, THEME_IDS, THEME_STORAGE_KEY } from '../data/themes';
+import { DARK_THEME_IDS, DEFAULT_THEME_ID, THEME_IDS } from '../data/themes';
 
 interface Props {
 	title: string;
@@ -105,6 +105,10 @@ const homeTextFontStack = fontStack(theme.homeTextFont, bodyFontStack);
 const postTitleFontStack = fontStack(theme.postTitleFont, headingFontStack);
 const postBodyFontStack = fontStack(theme.postBodyFont, bodyFontStack);
 const footerFontStack = fontStack(theme.footerFont, bodyFontStack);
+const activeThemeId = (THEME_IDS as readonly string[]).includes(theme.visualStyle)
+	? theme.visualStyle
+	: DEFAULT_THEME_ID;
+const activeThemeIsDark = (DARK_THEME_IDS as readonly string[]).includes(activeThemeId);
 let structuredData: Record<string, unknown>;
 switch (schemaType) {
 	case 'article':
@@ -187,34 +191,17 @@ ${customFontCss}
 <script
 	is:inline
 	define:vars={{
-		themeIds: THEME_IDS,
-		darkThemeIds: DARK_THEME_IDS,
-		defaultThemeId: DEFAULT_THEME_ID,
-		storageKey: THEME_STORAGE_KEY,
+		activeThemeId,
+		activeThemeIsDark,
 		preloadHero: preloadHero ?? null,
 	}}
 >
 	(() => {
 		document.documentElement.classList.add('js');
-		const params = new URLSearchParams(window.location.search);
-		const fromQuery = params.get('style');
-		const fromStorage = (() => {
-			try {
-				return localStorage.getItem(storageKey);
-			} catch {
-				return null;
-			}
-		})();
-		const initial = themeIds.includes(fromQuery)
-			? fromQuery
-			: themeIds.includes(fromStorage)
-				? fromStorage
-				: defaultThemeId;
+		document.documentElement.dataset.style = activeThemeId;
+		document.documentElement.style.colorScheme = activeThemeIsDark ? 'dark' : 'light';
 
-		document.documentElement.dataset.style = initial;
-		document.documentElement.style.colorScheme = darkThemeIds.includes(initial) ? 'dark' : 'light';
-
-		if (preloadHero?.desktop && initial === defaultThemeId) {
+		if (preloadHero?.desktop && activeThemeId === 'crayon-party') {
 			const preload = document.createElement('link');
 			preload.rel = 'preload';
 			preload.as = 'image';
@@ -223,12 +210,6 @@ ${customFontCss}
 				: preloadHero.desktop;
 			preload.fetchPriority = 'high';
 			document.head.append(preload);
-		}
-
-		if (themeIds.includes(fromQuery)) {
-			try {
-				localStorage.setItem(storageKey, fromQuery);
-			} catch {}
 		}
 	})();
 </script>

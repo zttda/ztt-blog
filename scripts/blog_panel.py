@@ -177,6 +177,7 @@ DEFAULT_FOOTER: dict[str, Any] = {
     "bilibiliHref": "",
 }
 DEFAULT_THEME: dict[str, Any] = {
+    "visualStyle": "crayon-party",
     "bodyFont": "default",
     "headingFont": "default",
     "navFont": "default",
@@ -187,6 +188,15 @@ DEFAULT_THEME: dict[str, Any] = {
     "footerFont": "default",
     "customFonts": [],
 }
+THEME_STYLE_OPTIONS: list[dict[str, str]] = [
+    {"id": "crayon-party", "label": "蜡笔派对（手帐风格）"},
+    {"id": "paper", "label": "纸刊手记"},
+    {"id": "noir", "label": "夜读小报"},
+    {"id": "ceramic", "label": "陶瓷档案"},
+    {"id": "brutal", "label": "粗野印刷"},
+    {"id": "terminal", "label": "绿色终端"},
+]
+THEME_STYLE_IDS = {item["id"] for item in THEME_STYLE_OPTIONS}
 BUILTIN_FONT_OPTIONS: list[dict[str, str]] = [
     {"id": "default", "label": "默认 Atkinson + 中文系统字体"},
     {"id": "serif", "label": "文艺宋体"},
@@ -468,6 +478,9 @@ def read_theme() -> dict[str, Any]:
             data.update(loaded)
     if not isinstance(data.get("customFonts"), list):
         data["customFonts"] = []
+    visual_style = data.get("visualStyle")
+    if not isinstance(visual_style, str) or visual_style not in THEME_STYLE_IDS:
+        data["visualStyle"] = DEFAULT_THEME["visualStyle"]
     return data
 
 
@@ -1467,6 +1480,11 @@ def update_footer(form: dict[str, str]) -> CommandResult:
 
 def update_theme(form: dict[str, str], files: dict[str, UploadedFile] | None = None) -> CommandResult:
     theme = read_theme()
+    visual_style = form.get("visualStyle", "").strip()
+    if visual_style and visual_style not in THEME_STYLE_IDS:
+        return CommandResult(1, "视觉风格无效，请从控制面板提供的选项中选择。")
+    if visual_style:
+        theme["visualStyle"] = visual_style
     custom_fonts = [font for font in theme.get("customFonts", []) if isinstance(font, dict)]
 
     family = form.get("fontFamily", "").strip()
@@ -1517,7 +1535,7 @@ def update_theme(form: dict[str, str], files: dict[str, UploadedFile] | None = N
 
     theme["customFonts"] = custom_fonts
     write_theme(theme)
-    return CommandResult(0, "字体设置已保存。构建并发布后，访客会加载网站托管的字体文件。")
+    return CommandResult(0, "视觉风格和字体设置已保存。刷新本地预览即可查看，发布后所有访客会看到同一套风格。")
 
 
 def add_friend(form: dict[str, str], files: dict[str, UploadedFile] | None = None) -> CommandResult:
@@ -2489,6 +2507,11 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         for font in theme.get("customFonts", [])
         if isinstance(font, dict) and font.get("id")
     ]
+    visual_style_options = "\n".join(
+        f'<option value="{html_escape(item["id"])}" {"selected" if item["id"] == theme.get("visualStyle") else ""}>{html_escape(item["label"])}</option>'
+        for item in THEME_STYLE_OPTIONS
+    )
+
     def font_options(selected: Any) -> str:
         return "\n".join(
             f'<option value="{html_escape(item["id"])}" {"selected" if item["id"] == selected else ""}>{html_escape(item["label"])}</option>'
@@ -2754,8 +2777,12 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
         </form>
       </div>
       <div class="panel wide" id="theme-fonts">
-        <h2>字体设置</h2>
+        <h2>网站视觉与字体</h2>
         <form method="post" action="/action/update_theme" enctype="multipart/form-data">
+          <label for="visual-style">网站视觉风格</label>
+          <select id="visual-style" name="visualStyle">{visual_style_options}</select>
+          <span class="hint">只由你在本地控制面板设置，读者页面不再显示风格切换按钮。保存后刷新本地预览；构建并发布后，所有访客看到你选中的同一套风格。</span>
+          <h3>字体设置</h3>
           <p class="muted">普通选项使用字体栈：访客电脑有这个字体就显示，没有就自动回退到可用字体。只有上传自定义字体时，字体文件才会跟着网站发布。</p>
           <div class="field-grid">
             <div>
@@ -2805,7 +2832,7 @@ def render_page(message: CommandResult | None = None, edit_file: str = "") -> st
           <span class="hint">推荐上传 woff2 或 woff。中文字体可能有几 MB 到几十 MB，只在需要特殊字体时上传。</span>
           <label class="compact"><input type="checkbox" name="applyUploadedToBody"> 上传后应用到全站正文</label>
           <label class="compact"><input type="checkbox" name="applyUploadedToHeading"> 上传后应用到全站标题</label>
-          <div class="actions"><button type="submit">保存字体设置</button></div>
+          <div class="actions"><button type="submit">保存视觉与字体设置</button></div>
         </form>
         <h3>已上传字体</h3>
         <ul>{custom_font_rows or '<li class="muted">暂无自定义字体</li>'}</ul>

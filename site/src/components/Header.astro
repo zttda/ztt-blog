@@ -2,7 +2,6 @@
 import { SITE_TITLE } from '../consts';
 import navigation from '../data/navigation.json';
 import HeaderLink from './HeaderLink.astro';
-import ThemeSwitcher from './ThemeSwitcher.astro';
 
 const navItems = navigation.filter((item) => item.enabled);
 ---
@@ -15,7 +14,6 @@ const navItems = navigation.filter((item) => item.enabled);
 			{navItems.map((item) => <HeaderLink href={item.href}>{item.label}</HeaderLink>)}
 		</div>
 		<div class="header-tools">
-			<ThemeSwitcher />
 			<button
 				type="button"
 				class="nav-toggle"

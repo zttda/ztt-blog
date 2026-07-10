@@ -223,6 +223,46 @@ class RequestSecurityTests(unittest.TestCase):
             self.assertFalse(blog_panel.is_panel_ready(8765))
 
 
+class ThemeSettingsTests(unittest.TestCase):
+    def test_invalid_saved_visual_style_falls_back_to_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            theme_file = Path(temp_dir) / "theme.json"
+            theme_file.write_text('{"visualStyle": "unknown"}', encoding="utf-8")
+            with patch.object(blog_panel, "THEME_FILE", theme_file):
+                theme = blog_panel.read_theme()
+
+        self.assertEqual(theme["visualStyle"], "crayon-party")
+
+    def test_non_string_visual_style_falls_back_to_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            theme_file = Path(temp_dir) / "theme.json"
+            theme_file.write_text('{"visualStyle": []}', encoding="utf-8")
+            with patch.object(blog_panel, "THEME_FILE", theme_file):
+                theme = blog_panel.read_theme()
+
+        self.assertEqual(theme["visualStyle"], "crayon-party")
+
+    def test_visual_style_can_be_saved_from_the_local_panel(self) -> None:
+        with (
+            patch.object(blog_panel, "read_theme", return_value=blog_panel.DEFAULT_THEME.copy()),
+            patch.object(blog_panel, "write_theme") as write_theme,
+        ):
+            result = blog_panel.update_theme({"visualStyle": "paper"})
+
+        self.assertEqual(result.code, 0)
+        self.assertEqual(write_theme.call_args.args[0]["visualStyle"], "paper")
+
+    def test_unknown_visual_style_is_rejected_without_writing(self) -> None:
+        with (
+            patch.object(blog_panel, "read_theme", return_value=blog_panel.DEFAULT_THEME.copy()),
+            patch.object(blog_panel, "write_theme") as write_theme,
+        ):
+            result = blog_panel.update_theme({"visualStyle": "not-a-theme"})
+
+        self.assertEqual(result.code, 1)
+        write_theme.assert_not_called()
+
+
 class PanelSingleInstanceTests(unittest.TestCase):
     def test_existing_panel_is_reused_and_opened(self) -> None:
         with (
